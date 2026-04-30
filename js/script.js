@@ -103,51 +103,7 @@ function escapeDialogText (text) {
 		.replace (/\r?\n/g, '<br>');
 }
 
-function saveLLMExchange (engine, input) {
-	const prompt = input.trim ();
-
-	engine.storage ({
-		llm: {
-			prompt: escapeDialogText (prompt),
-			response: '소마가 잠시 생각에 잠긴다...'
-		}
-	});
-
-	return fetch (LLM_PROXY_ENDPOINT, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify ({
-			content: prompt
-		})
-	}).then ((response) => {
-		if (!response.ok) {
-			throw new Error (`LLM proxy responded with ${response.status}`);
-		}
-
-		return response.json ();
-	}).then ((data) => {
-		engine.storage ({
-			llm: {
-				prompt: escapeDialogText (prompt),
-				response: escapeDialogText (data.response || '')
-			}
-		});
-
-		return true;
-	}).catch ((error) => {
-		console.error ('LLM proxy request failed:', error);
-		engine.storage ({
-			llm: {
-				prompt: escapeDialogText (prompt),
-				response: '지금은 연결이 좀 불안정한 것 같아. 잠시 후에 다시 말을 걸어줄래?'
-			}
-		});
-
-		return true;
-	});
-}
+let pendingLLMRequest = null;
 
 monogatari.script ({
 	'Start': [
@@ -224,7 +180,42 @@ monogatari.script ({
 					return input.trim ().length > 0;
 				},
 				'Save': function (input) {
-					saveLLMExchange(this, input);
+					const prompt = input.trim();
+					this.storage ({
+						llm: {
+							prompt: escapeDialogText (prompt),
+							response: ''
+						}
+					});
+
+					// 비동기 요청을 즉시 시작하고 Promise를 전역 변수에 저장해둡니다.
+					pendingLLMRequest = fetch(LLM_PROXY_ENDPOINT, {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json'
+						},
+						body: JSON.stringify ({ content: prompt })
+					}).then(async (response) => {
+						if (!response.ok) {
+							throw new Error (`LLM proxy responded with ${response.status}`);
+						}
+						const data = await response.json();
+						this.storage ({
+							llm: {
+								prompt: escapeDialogText (prompt),
+								response: escapeDialogText (data.response || '')
+							}
+						});
+					}).catch((error) => {
+						console.error ('LLM proxy request failed:', error);
+						this.storage ({
+							llm: {
+								prompt: escapeDialogText (prompt),
+								response: '지금은 연결이 좀 불안정한 것 같아. 잠시 후에 다시 말을 걸어줄래?'
+							}
+						});
+					});
+
 					return true;
 				},
 				'Revert': function () {
@@ -240,6 +231,14 @@ monogatari.script ({
 			}
 		},
 		'p {{llm.prompt}}',
+		'소마가 잠시 생각에 잠긴다...',
+		async function () {
+			if (pendingLLMRequest) {
+				await pendingLLMRequest;
+				pendingLLMRequest = null;
+			}
+			return true;
+		},
 		'y {{llm.response}}',
 		{
 			'Choice': {
