@@ -105,7 +105,7 @@ function escapeDialogText (text) {
 		.replace (/\r?\n/g, '<br>');
 }
 
-let pendingLLMRequest = null;
+let pendingStreamResponse = null; // Promise<Response> — Save에서 즉시 시작하는 fetch
 
 monogatari.script ({
 	'Start': [
@@ -182,7 +182,7 @@ monogatari.script ({
 					return input.trim ().length > 0;
 				},
 				'Save': function (input) {
-					const prompt = input.trim();
+					const prompt = input.trim ();
 					this.storage ({
 						llm: {
 							prompt: escapeDialogText (prompt),
@@ -190,32 +190,11 @@ monogatari.script ({
 						}
 					});
 
-					// 비동기 요청을 즉시 시작하고 Promise를 전역 변수에 저장해둡니다.
-					pendingLLMRequest = fetch(LLM_PROXY_ENDPOINT, {
+					// 즉시 fetch 시작 — Promise<Response> 저장 (헤더 도달 시 resolve)
+					pendingStreamResponse = fetch (LLM_PROXY_ENDPOINT, {
 						method: 'POST',
-						headers: {
-							'Content-Type': 'application/json'
-						},
+						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify ({ content: prompt })
-					}).then(async (response) => {
-						if (!response.ok) {
-							throw new Error (`LLM proxy responded with ${response.status}`);
-						}
-						const data = await response.json();
-						this.storage ({
-							llm: {
-								prompt: escapeDialogText (prompt),
-								response: escapeDialogText (data.response || '')
-							}
-						});
-					}).catch((error) => {
-						console.error ('LLM proxy request failed:', error);
-						this.storage ({
-							llm: {
-								prompt: escapeDialogText (prompt),
-								response: '지금은 연결이 좀 불안정한 것 같아요. 잠시 후에 다시 말을 걸어주실래요?'
-							}
-						});
 					});
 
 					return true;
@@ -233,15 +212,145 @@ monogatari.script ({
 			}
 		},
 		'p {{llm.prompt}}',
-		'소마가 잠시 생각에 잠긴다...',
 		async function () {
-			if (pendingLLMRequest) {
-				await pendingLLMRequest;
-				pendingLLMRequest = null;
+			const sayEl = document.querySelector ('[data-ui="say"]');
+			const whoEl = document.querySelector ('[data-ui="who"]');
+			if (whoEl) whoEl.textContent = '소마';
+			if (sayEl) sayEl.innerHTML = '';
+
+			// [Producer] 스트림 읽기를 백그라운드에서 실행
+			let textBuffer = '';
+			let streamComplete = false;
+
+			try {
+				const response = await pendingStreamResponse;
+				pendingStreamResponse = null;
+				if (!response.ok) throw new Error (`HTTP ${response.status}`);
+
+				const reader = response.body.getReader ();
+				const decoder = new TextDecoder ();
+
+				(async () => {
+					try {
+						let buf = '';
+						let done = false;
+						while (!done) {
+							const { done: d, value } = await reader.read ();
+							if (d) break;
+							buf += decoder.decode (value, { stream: true });
+							const sseLines = buf.split ('\n');
+							buf = sseLines.pop () || '';
+							for (const line of sseLines) {
+								if (!line.startsWith ('data: ')) continue;
+								const payload = line.slice (6).trim ();
+								if (payload === '[DONE]') { done = true; break; }
+								try {
+									const data = JSON.parse (payload);
+									if (data.error) throw new Error (data.error);
+									textBuffer += data.chunk || '';
+								} catch (_) {}
+							}
+						}
+					} catch (e) {
+						console.error ('Stream read error:', e);
+					}
+					streamComplete = true;
+				}) ();
+			} catch (error) {
+				console.error ('Fetch failed:', error);
+				textBuffer = '지금은 연결이 좀 불안정한 것 같아요. 잠시 후에 다시 말을 걸어주실래요?';
+				streamComplete = true;
 			}
+
+			// [Consumer] 타이프라이터 + 페이지 구분
+			const PAGE_BREAK_THRESHOLD = 80;
+			let typed = 0;
+			let pageText = '';
+			let skipToBreak = false;
+
+			// 상태 머신: 'typing' → 클릭 시 스킵, 'waiting' → 클릭 시 다음 페이지 진행
+			let pageState = 'typing';
+			let resolveAdvance = null;
+
+			const handleInteract = (e) => {
+				if (e.type === 'keydown' && !['Enter', ' ', 'ArrowRight'].includes (e.key)) return;
+				if (e.type === 'click' && e.target?.closest?.('text-input, button, select, input, textarea')) return;
+				if (e.type === 'keydown') e.preventDefault ();
+				if (pageState === 'typing') {
+					skipToBreak = true;
+				} else if (pageState === 'waiting' && resolveAdvance) {
+					resolveAdvance ();
+					resolveAdvance = null;
+				}
+			};
+			document.addEventListener ('click', handleInteract);
+			document.addEventListener ('keydown', handleInteract);
+
+			const waitForAdvance = () => {
+				pageState = 'waiting';
+				return new Promise (r => { resolveAdvance = r; });
+			};
+
+			// 페이지 시작 시 선행 공백·줄바꿈 스킵 (빈 줄이 먼저 출력되는 것 방지)
+			const skipLeadingWhitespace = () => {
+				while (typed < textBuffer.length && ' \n\r\t'.includes (textBuffer[typed])) {
+					typed++;
+				}
+			};
+
+			// 첫 데이터가 도착할 때까지 대기 후 선행 공백 스킵
+			while (typed >= textBuffer.length && !streamComplete) {
+				await new Promise (r => setTimeout (r, 10));
+			}
+			skipLeadingWhitespace ();
+
+			while (true) {
+				if (typed >= textBuffer.length) {
+					if (streamComplete) break;
+					await new Promise (r => setTimeout (r, 10));
+					continue;
+				}
+
+				const ch = textBuffer[typed++];
+				pageText += ch;
+				sayEl.innerHTML = escapeDialogText (pageText);
+
+				if (/[.!?。！？]/.test (ch) && pageText.length >= PAGE_BREAK_THRESHOLD) {
+					if (typed >= textBuffer.length && !streamComplete) {
+						await new Promise (r => setTimeout (r, 50));
+					}
+					const next = textBuffer[typed];
+					if (!next || next === ' ' || next === '\n') {
+						await waitForAdvance ();
+						skipToBreak = false;
+						pageState = 'typing';
+						pageText = '';
+						sayEl.innerHTML = '';
+						skipLeadingWhitespace (); // 다음 페이지 선행 공백 스킵
+					}
+				}
+
+				if (!skipToBreak) {
+					await new Promise (r => setTimeout (r, 30));
+				}
+			}
+
+			if (pageText.trim ()) {
+				await waitForAdvance ();
+			}
+
+			document.removeEventListener ('click', handleInteract);
+			document.removeEventListener ('keydown', handleInteract);
+
+			this.storage ({
+				llm: {
+					prompt: this.storage ('llm').prompt,
+					response: textBuffer
+				}
+			});
+
 			return true;
 		},
-		'y {{llm.response}}',
 		{
 			'Choice': {
 				'Dialog': 'y 더 이야기할까요?',
