@@ -5,6 +5,9 @@ monogatari.storage ({
 	player: {
 		name: '???'
 	},
+	sera: {
+		name: '???'
+	},
 	llm: {
 		prompt: '',
 		response: ''
