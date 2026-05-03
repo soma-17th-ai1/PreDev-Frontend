@@ -504,12 +504,69 @@ text-input.llm-input button:focus {
 
 /* Character Images Styles */
 [data-screen="game"] [data-character] {
+	left: 50%;
+	right: auto;
+	margin: 0;
+	transform: translateX(-50%);
+	transition-property: left, transform;
+	transition-timing-function: ease;
+}
 
+[data-screen="game"] [data-character].center {
+	left: 50%;
+	right: auto;
+	margin: 0;
+	transform: translateX(-50%);
+}
+
+[data-screen="game"] [data-character].left {
+	left: 0;
+	right: auto;
+	margin: 0;
+	transform: translateX(0);
+}
+
+[data-screen="game"] [data-character].right {
+	left: 100%;
+	right: auto;
+	margin: 0;
+	transform: translateX(-100%);
 }
 
 /* Other Images Styles */
 [data-screen="game"] [data-image] {
+	--img-x: 50%;
+	--img-y: 50%;
+	--img-tx: -50%;
+	--img-ty: -50%;
+	top: var(--img-y);
+	left: var(--img-x);
+	right: auto;
+	bottom: auto;
+	margin: 0;
+	transform: translate(var(--img-tx), var(--img-ty));
+	transition-property: top, left, transform;
+	transition-timing-function: ease;
+}
 
+[data-screen="game"] [data-image].left {
+	--img-x: 0;
+	--img-tx: 0;
+}
+
+[data-screen="game"] [data-image].right {
+	--img-x: 100%;
+	--img-tx: -100%;
+}
+
+[data-screen="game"] [data-image].top {
+	--img-y: 0;
+	--img-ty: 0;
+}
+
+[data-screen="game"] [data-image].bottom {
+	--img-y: 100%;
+	--img-ty: -100%;
 }
 
 /**
