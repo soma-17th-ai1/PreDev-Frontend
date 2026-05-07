@@ -133,16 +133,18 @@ function spriteUrl (spriteKey) {
 	return `assets/characters/이세라_표정/이세라_표정/${encodeURI (file)}`;
 }
 
-// 씬별 배경 (실 이미지가 없는 구간은 분위기에 맞는 그라디언트로 연출)
+// 씬별 배경. 소마 도착 이후(포스트타워 1F~)는 모두 entrance.png 단일 자산을 임시로 사용.
+// 소마 외 씬(아침 침실, 출근길)은 분위기 그라디언트 유지.
+const SOMA_BG = 'url("assets/scenes/entrance.png") center / cover no-repeat #1a1a1a';
 const SCENE_BG = {
 	fade_black:     '#0a0a0f',
 	bedroom_dawn:   'linear-gradient(180deg, #161927 0%, #2c2438 45%, #6b5564 100%)',
 	apartment_door: 'linear-gradient(180deg, #1f1816 0%, #3b2a23 55%, #5e4334 100%)',
 	train_interior: 'linear-gradient(180deg, #0d141c 0%, #1d2a36 55%, #38536a 100%)',
-	posttower_lobby: 'url("assets/scenes/entrance.png") center / cover no-repeat #1a1a1a',
-	elevator_panel: 'linear-gradient(135deg, #15110f 0%, #38302b 55%, #6a564a 100%)',
-	center_hall:    'linear-gradient(160deg, #fff7e7 0%, #f5dcb1 50%, #d2a373 100%)',
-	s1_room:        'linear-gradient(170deg, #fff5dc 0%, #ffd8b6 45%, #b78657 100%)'
+	posttower_lobby: SOMA_BG,
+	elevator_panel:  SOMA_BG,
+	center_hall:     SOMA_BG,
+	s1_room:         SOMA_BG
 };
 
 function escapeDialogText (text) {
@@ -155,16 +157,32 @@ function escapeDialogText (text) {
 		.replace (/\r?\n/g, '<br>');
 }
 
-// 게임 화면의 배경 레이어를 부드럽게 교체
-function setSceneBackground (cssValue, fadeMs = 1000) {
+// 게임 화면의 배경 레이어를 부드럽게 교체.
+// 그라디언트↔이미지 보간이 깔끔하지 않아 'background' 트랜지션 대신
+// opacity 페이드아웃 → 즉시 스왑 → 페이드인 방식으로 일관된 fade 연출을 보장한다.
+let _currentSceneBg = null;
+async function setSceneBackground (cssValue, fadeMs = 500) {
 	const bgEl = document.querySelector ('[data-screen="game"] [data-ui="background"]')
 		|| document.querySelector ('[data-ui="background"]');
-	if (!bgEl) return Promise.resolve ();
-	bgEl.style.transition = `opacity ${fadeMs}ms ease, background ${fadeMs}ms ease`;
+	if (!bgEl) return;
+	// 같은 배경이면 페이드 생략 (예: 포스트타워→엘리베이터→센터홀→S1룸 모두 SOMA_BG)
+	if (_currentSceneBg === cssValue) return;
+	_currentSceneBg = cssValue;
+	const half = Math.max (60, Math.floor (fadeMs / 2));
+	// 페이드 아웃
+	bgEl.style.transition = `opacity ${half}ms ease`;
+	bgEl.style.opacity = '0';
+	await new Promise (r => setTimeout (r, half));
+	// 배경 즉시 스왑 (트랜지션 없음 → 보간 이상 현상 방지)
+	bgEl.style.transition = 'none';
 	bgEl.style.backgroundImage = '';
 	bgEl.style.backgroundColor = '';
 	bgEl.style.background = cssValue;
-	return new Promise (r => setTimeout (r, fadeMs));
+	void bgEl.offsetWidth; // reflow
+	// 페이드 인
+	bgEl.style.transition = `opacity ${half}ms ease`;
+	bgEl.style.opacity = '1';
+	await new Promise (r => setTimeout (r, half));
 }
 
 // 인트로 로고 스플래시 (게임 시작 직후 5초 페이드 인 → 유지 → 페이드 아웃)
@@ -550,7 +568,7 @@ monogatari.script ({
 		async function () {
 			await setSceneBackground ('#ffffff', 0);
 			await showIntroLogo ();
-			await setSceneBackground (SCENE_BG.fade_black, 800);
+			await setSceneBackground (SCENE_BG.fade_black, 400);
 			return true;
 		},
 
@@ -583,7 +601,7 @@ monogatari.script ({
 
 		// === 씬 2: 아침 기상 (침실 천장 분위기, 내레이션·독백만) ===
 		async function () {
-			await setSceneBackground (SCENE_BG.bedroom_dawn, 1500);
+			await setSceneBackground (SCENE_BG.bedroom_dawn, 500);
 			return true;
 		},
 		'4월 13일, 월요일. 화창한 아침.',
@@ -598,13 +616,13 @@ monogatari.script ({
 
 		// === 씬 3: 출근길 (현관 → 6호선) ===
 		async function () {
-			await setSceneBackground (SCENE_BG.apartment_door, 1200);
+			await setSceneBackground (SCENE_BG.apartment_door, 500);
 			return true;
 		},
 		'철컥— 현관문이 닫힌다.',
 
 		async function () {
-			await setSceneBackground (SCENE_BG.train_interior, 1200);
+			await setSceneBackground (SCENE_BG.train_interior, 500);
 			return true;
 		},
 		'쿠구구궁… 덜컹… 덜컹…',
@@ -613,14 +631,14 @@ monogatari.script ({
 
 		// === 씬 4: 포스트타워 진입 (실 이미지 + 엘리베이터 분위기) ===
 		async function () {
-			await setSceneBackground (SCENE_BG.posttower_lobby, 1500);
+			await setSceneBackground (SCENE_BG.posttower_lobby, 500);
 			return true;
 		},
 		'저벅… 저벅…',
 		'p 오, 여기가 소마 건물이구나. 7층이었지, 아마?',
 
 		async function () {
-			await setSceneBackground (SCENE_BG.elevator_panel, 1100);
+			await setSceneBackground (SCENE_BG.elevator_panel, 500);
 			return true;
 		},
 		'7층 버튼을 누른다.',
@@ -628,7 +646,7 @@ monogatari.script ({
 
 		// === 씬 5: 7층 센터 홀 (밝은 분위기) ===
 		async function () {
-			await setSceneBackground (SCENE_BG.center_hall, 1500);
+			await setSceneBackground (SCENE_BG.center_hall, 500);
 			return true;
 		},
 		'p 오오! 이곳이 센터구나. 안이 생각보다 훨씬 깔끔한걸?',
@@ -643,7 +661,7 @@ monogatari.script ({
 
 		// === 씬 6: S1 룸 첫 조우 (이세라 첫등장 CG 페이드 인 → 스프라이트 등장) ===
 		async function () {
-			await setSceneBackground (SCENE_BG.s1_room, 1500);
+			await setSceneBackground (SCENE_BG.s1_room, 500);
 			return true;
 		},
 		'— S1 룸 —',
@@ -701,12 +719,12 @@ monogatari.script ({
 	],
 
 	'LLMChat': [
-		// 1) 진입 직후: pending 씬 인트로(있다면) 자동 재생 → 세션 부트스트랩 → suggestions
+		// 1) 진입 직후: pending 씬 인트로(있다면) 자동 재생 → 세션 부트스트랩 (suggestions UI는 미노출)
 		async function () {
 			const playerName = (this.storage ('player') || {}).name || '플레이어';
 			await bootstrapSessionOnce (playerName);
 			await playSceneIntroIfPending (this);
-			await fetchAndRenderSuggestions ();
+			clearSuggestions ();
 			return true;
 		},
 
