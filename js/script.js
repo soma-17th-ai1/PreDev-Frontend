@@ -103,6 +103,7 @@ monogatari.translation ('English', {
 const API_BASE = 'http://127.0.0.1:8000/api/v1';
 
 // PERSONA.md / API_SPEC.md §1.4.1 emotion ENUM → sprite key/file
+// FURIOUS: 전용 자산 부재 → 임시로 ANGRY('화남.png') 재사용. 자산 추가 시 'furious' 키 등록 필요.
 const SERA_SPRITE_MAP = {
 	NEUTRAL:   'calm',
 	HAPPY:     'happy',
@@ -111,7 +112,7 @@ const SERA_SPRITE_MAP = {
 	SAD:       'sad',
 	ANGRY:     'angry',
 	DISGUSTED: 'disgust',
-	FURIOUS:   'angry'   // 전용 sprite 부재 → 화남 재사용
+	FURIOUS:   'angry'   // TEMP — 전용 sprite 부재 → 화남 재사용 (자산 추가 시 교체)
 };
 const SERA_SPRITE_FILE = {
 	calm:    '평온.png',
@@ -518,15 +519,20 @@ async function fetchEndingContent () {
 	} catch (e) { return null; }
 }
 
-// ENDING_* → 엔딩 이미지. 자산이 추가되면 키를 등록(예: ENDING_HAPPY: 'assets/gallery/ending_happy.png').
-// 등록되지 않은 키는 네트워크 요청 없이 텍스트만 출력해 콘솔 에러를 만들지 않는다.
+// ENDING_* → 엔딩 이미지. 자산이 추가되면 경로를 활성화. 미등록 키는 silent skip.
+// API_SPEC §5.1 — image_id 는 응답에 없고 FE 가 endingId ENUM 으로 매핑한다.
 const ENDING_IMAGE_MAP = {
-	// 자산 추가 시 활성화 — 현재 미등록
+	ENDING_INSTANT_BAD:        null,  // assets/gallery/ending_instant_bad.png 등록 시 활성화
+	ENDING_BAD:                null,  // assets/gallery/ending_bad.png
+	ENDING_NORMAL_NO_CONTACT:  null,  // assets/gallery/ending_normal_no_contact.png
+	ENDING_NORMAL_CONTACT:     null,  // assets/gallery/ending_normal_contact.png
+	ENDING_HAPPY:              null,  // assets/gallery/ending_happy.png
+	ENDING_MARRIAGE:           null   // assets/gallery/ending_marriage.png
 };
 let _endingImageEl = null;
 async function showEndingImageIfAvailable (endingId) {
 	const url = ENDING_IMAGE_MAP[endingId];
-	if (!url) return;                             // 자산 미등록 → 조용히 스킵
+	if (!url) return;                             // 자산 미등록(null) → silent skip
 	const visuals = document.querySelector ('[data-screen="game"] [data-content="visuals"]') || document.body;
 	if (_endingImageEl) _endingImageEl.remove ();
 	_endingImageEl = document.createElement ('div');
@@ -537,17 +543,24 @@ async function showEndingImageIfAvailable (endingId) {
 	_endingImageEl.classList.add ('cg-overlay--visible');
 }
 
-// 세션 부트스트랩 (1회). BE 미가용 시 silent fail.
+// 세션 부트스트랩 — 메인 메뉴에서 이미 세션이 만들어졌으면 start 만 호출.
+// 이어 하기로 진입한 경우엔 hydrate 가 끝났으므로 이 함수 자체를 호출하지 않는다.
 let _sessionBootstrapped = false;
 async function bootstrapSessionOnce (playerName) {
 	if (_sessionBootstrapped) return;
 	try {
-		await fetch (`${API_BASE}/sessions`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			credentials: 'include',
-			body: JSON.stringify ({ force_reset: true })
-		});
+		// /sessions/me 로 기존 세션 여부 확인 — 없으면 새 세션 만든다 (force_reset:false 부터)
+		const meRes = await fetch (`${API_BASE}/sessions/me`, { credentials: 'include' });
+		const meJson = meRes.ok ? await meRes.json () : null;
+		const hasSession = !!(meJson?.data?.has_session);
+		if (!hasSession) {
+			await fetch (`${API_BASE}/sessions`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify ({ force_reset: false })
+			});
+		}
 		await fetch (`${API_BASE}/sessions/me/start`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
@@ -558,6 +571,349 @@ async function bootstrapSessionOnce (playerName) {
 	} catch (e) {
 		console.warn ('[session] bootstrap failed (BE 미가용?):', e.message || e);
 	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 메인 메뉴 (인트로 로고 후 표시) — API_SPEC §2.1 / §2.2 / §2.4
+// ─────────────────────────────────────────────────────────────────────────────
+async function fetchSessionMe () {
+	try {
+		const res = await fetch (`${API_BASE}/sessions/me`, { credentials: 'include' });
+		if (!res.ok) return null;
+		const json = await res.json ();
+		return json?.data || null;
+	} catch (e) { return null; }
+}
+
+async function postSessionsCreate (forceReset) {
+	const res = await fetch (`${API_BASE}/sessions`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		credentials: 'include',
+		body: JSON.stringify ({ force_reset: !!forceReset })
+	});
+	return res;
+}
+
+async function fetchResume () {
+	try {
+		const res = await fetch (`${API_BASE}/sessions/me/resume`, { credentials: 'include' });
+		if (!res.ok) return { ok: false, status: res.status };
+		const json = await res.json ();
+		return { ok: true, data: json?.data || null };
+	} catch (e) { return { ok: false, status: 0 }; }
+}
+
+function _renderMainMenuOverlay (canResume) {
+	return new Promise ((resolve) => {
+		const old = document.querySelector ('.main-menu-overlay');
+		if (old) old.remove ();
+		const overlay = document.createElement ('div');
+		overlay.className = 'main-menu-overlay';
+		overlay.innerHTML = `
+			<div class="main-menu-overlay__panel" role="dialog" aria-label="메인 메뉴">
+				<div class="main-menu-overlay__title">커널을 좋아하는 옆자리의 그녀</div>
+				<div class="main-menu-overlay__sub">Software Maestro × First Love</div>
+				<div class="main-menu-overlay__buttons">
+					${canResume ? '<button type="button" class="main-menu-btn main-menu-btn--resume">이어 하기</button>' : ''}
+					<button type="button" class="main-menu-btn main-menu-btn--new">${canResume ? '새 게임 (이전 기록 초기화)' : '새 게임'}</button>
+				</div>
+				${canResume ? '<div class="main-menu-overlay__hint">이전 기록이 있어요. 이어 하기를 누르면 마지막 씬으로 돌아갑니다.</div>' : ''}
+			</div>
+		`;
+		document.body.appendChild (overlay);
+		void overlay.offsetWidth;
+		overlay.classList.add ('main-menu-overlay--visible');
+
+		const cleanup = (decision) => {
+			overlay.classList.remove ('main-menu-overlay--visible');
+			overlay.classList.add ('main-menu-overlay--leaving');
+			setTimeout (() => { if (overlay.parentNode) overlay.parentNode.removeChild (overlay); }, 400);
+			resolve (decision);
+		};
+
+		const newBtn = overlay.querySelector ('.main-menu-btn--new');
+		const resumeBtn = overlay.querySelector ('.main-menu-btn--resume');
+		newBtn?.addEventListener ('click', () => cleanup ('new'));
+		resumeBtn?.addEventListener ('click', () => cleanup ('resume'));
+	});
+}
+
+async function _confirmReset () {
+	return new Promise ((resolve) => {
+		const overlay = document.createElement ('div');
+		overlay.className = 'confirm-modal';
+		overlay.innerHTML = `
+			<div class="confirm-modal__panel" role="alertdialog">
+				<div class="confirm-modal__title">이전 기록이 있습니다</div>
+				<div class="confirm-modal__body">새 게임을 시작하면 진행 중인 기록이 삭제돼요. 계속할까요?</div>
+				<div class="confirm-modal__buttons">
+					<button type="button" class="confirm-modal__btn confirm-modal__btn--cancel">취소</button>
+					<button type="button" class="confirm-modal__btn confirm-modal__btn--ok">초기화하고 시작</button>
+				</div>
+			</div>
+		`;
+		document.body.appendChild (overlay);
+		void overlay.offsetWidth;
+		overlay.classList.add ('confirm-modal--visible');
+		const close = (decision) => {
+			overlay.classList.remove ('confirm-modal--visible');
+			setTimeout (() => { if (overlay.parentNode) overlay.parentNode.removeChild (overlay); }, 250);
+			resolve (decision);
+		};
+		overlay.querySelector ('.confirm-modal__btn--cancel').addEventListener ('click', () => close (false));
+		overlay.querySelector ('.confirm-modal__btn--ok').addEventListener ('click', () => close (true));
+	});
+}
+
+// 결정: 'new' (빌드업 → LLMChat) | 'resume' (LLMChat 직진) | 'new-bypass' (BE 미가용 폴백)
+async function decideBootMode (storageRef) {
+	const me = await fetchSessionMe ();
+	if (!me) {
+		// BE 미가용 — 기존 흐름 그대로 새 게임 진행 (silent fallback)
+		console.warn ('[main-menu] BE 미가용 — 기본 새 게임으로 진행');
+		return 'new-bypass';
+	}
+	const canResume = !!(me.has_session && me.is_started && !me.is_ended);
+	const choice = await _renderMainMenuOverlay (canResume);
+
+	if (choice === 'resume') {
+		const r = await fetchResume ();
+		if (!r.ok) {
+			alert ('이전 기록을 불러오지 못했어요. 새 게임으로 시작할게요.');
+			return await _startFreshOrConfirm (me);
+		}
+		_hydrateFromResume (storageRef, r.data);
+		return 'resume';
+	}
+	// 새 게임
+	return await _startFreshOrConfirm (me);
+}
+
+async function _startFreshOrConfirm (me) {
+	// 세션 존재 시 force_reset:false → 409 → confirm → force_reset:true
+	let res = await postSessionsCreate (false);
+	if (res.status === 409) {
+		const ok = await _confirmReset ();
+		if (!ok) {
+			// 사용자가 취소 → 메뉴 다시 표시
+			const choice = await _renderMainMenuOverlay (!!(me?.has_session && me?.is_started && !me?.is_ended));
+			if (choice === 'resume') {
+				const r = await fetchResume ();
+				if (r.ok) { return 'resume-pending-hydrate'; }
+			}
+			res = await postSessionsCreate (true);
+		} else {
+			res = await postSessionsCreate (true);
+		}
+	}
+	if (!res || !res.ok) {
+		console.warn ('[main-menu] /sessions 생성 실패 — 기본 새 게임 폴백');
+		return 'new-bypass';
+	}
+	return 'new';
+}
+
+function _hydrateFromResume (storageRef, data) {
+	if (!data) return;
+	const state = data.state || {};
+	const scene = data.scene || {};
+	const recent = Array.isArray (data.recent_messages) ? data.recent_messages : [];
+	const player = { name: state.player_name || '플레이어' };
+	storageRef.storage ({
+		player,
+		sera: { name: '이세라' },
+		game: {
+			affinity:        typeof state.affinity   === 'number' ? state.affinity   : 0,
+			affinity_delta:  0,
+			progress:        typeof state.progress   === 'number' ? state.progress   : 0,
+			chat_count:      typeof state.chat_count === 'number' ? state.chat_count : 0,
+			current_scene_id: state.current_scene_id || 'SCENE_FIRST_MEET'
+		},
+		llm: {
+			prompt: '',
+			response: '',
+			emotion: state.emotion || 'NEUTRAL',
+			event_id: '',
+			next_scene_id: '',
+			shouldEnd: !!state.is_ended
+		},
+		boot: { mode: 'resume', recent_messages: recent, scene_title: scene.title || '' }
+	});
+	_sessionBootstrapped = true; // 이어 하기 시 부트스트랩 스킵
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HUD — 진행도 바 + 호감도 표시 (API_SPEC §1.5 progress / affinity)
+// ─────────────────────────────────────────────────────────────────────────────
+let _hudEl = null;
+function ensureHUD () {
+	if (_hudEl && document.body.contains (_hudEl)) return _hudEl;
+	const game = document.querySelector ('[data-screen="game"]') || document.body;
+	const hud = document.createElement ('div');
+	hud.className = 'hud-progress';
+	hud.innerHTML = `
+		<div class="hud-progress__row">
+			<span class="hud-progress__label">진행도</span>
+			<div class="hud-progress__bar"><div class="hud-progress__fill" style="width:0%"></div></div>
+			<span class="hud-progress__pct">0%</span>
+		</div>
+		<div class="hud-progress__row hud-progress__row--aff">
+			<span class="hud-progress__label">호감도</span>
+			<span class="hud-progress__affinity">0</span>
+		</div>
+	`;
+	game.appendChild (hud);
+	_hudEl = hud;
+	return hud;
+}
+
+function updateHUD ({ progress, affinity }) {
+	const hud = ensureHUD ();
+	if (typeof progress === 'number') {
+		const fill = hud.querySelector ('.hud-progress__fill');
+		const pct = hud.querySelector ('.hud-progress__pct');
+		const clamped = Math.max (0, Math.min (100, progress));
+		if (fill) fill.style.width = clamped + '%';
+		if (pct) pct.textContent = clamped + '%';
+	}
+	if (typeof affinity === 'number') {
+		const a = hud.querySelector ('.hud-progress__affinity');
+		if (a) {
+			a.textContent = String (affinity);
+			a.classList.remove ('hud-progress__affinity--pos', 'hud-progress__affinity--neg');
+			if (affinity > 0) a.classList.add ('hud-progress__affinity--pos');
+			else if (affinity < 0) a.classList.add ('hud-progress__affinity--neg');
+		}
+	}
+}
+
+function hideHUD () {
+	if (_hudEl) {
+		_hudEl.classList.add ('hud-progress--leaving');
+		setTimeout (() => { if (_hudEl?.parentNode) _hudEl.parentNode.removeChild (_hudEl); _hudEl = null; }, 400);
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 로그 뷰어 — GET /chat/history (limit=50, before 커서)
+// ─────────────────────────────────────────────────────────────────────────────
+let _logViewerEl = null;
+let _logViewerCursor = null;
+let _logViewerLoading = false;
+
+async function fetchHistoryPage (before) {
+	const params = new URLSearchParams ({ limit: '50' });
+	if (before) params.set ('before', before);
+	try {
+		const res = await fetch (`${API_BASE}/chat/history?${params}`, { credentials: 'include' });
+		if (!res.ok) return null;
+		const json = await res.json ();
+		return json?.data || null;
+	} catch (e) { return null; }
+}
+
+function _logRoleLabel (role) {
+	switch (role) {
+		case 'USER': return '나';
+		case 'ASSISTANT': return '이세라';
+		case 'NARRATION': return '나레이션';
+		case 'SYSTEM_EVENT': return '시스템';
+		default: return role;
+	}
+}
+
+function _renderLogMessages (listEl, messages, prepend) {
+	const fragment = document.createDocumentFragment ();
+	messages.forEach (m => {
+		const row = document.createElement ('div');
+		row.className = 'log-viewer__row log-viewer__row--' + String (m.role || 'NARRATION').toLowerCase ();
+		row.innerHTML = `
+			<div class="log-viewer__role">${_logRoleLabel (m.role)}</div>
+			<div class="log-viewer__bubble">${escapeDialogText (m.content || '')}</div>
+		`;
+		fragment.appendChild (row);
+	});
+	if (prepend) listEl.insertBefore (fragment, listEl.firstChild);
+	else listEl.appendChild (fragment);
+}
+
+async function openLogViewer () {
+	if (_logViewerEl) return;
+	const overlay = document.createElement ('div');
+	overlay.className = 'log-viewer';
+	overlay.innerHTML = `
+		<div class="log-viewer__panel" role="dialog" aria-label="대화 로그">
+			<div class="log-viewer__header">
+				<span class="log-viewer__title">대화 로그</span>
+				<button type="button" class="log-viewer__close" aria-label="닫기">✕</button>
+			</div>
+			<button type="button" class="log-viewer__more" hidden>이전 보기</button>
+			<div class="log-viewer__list" tabindex="0"></div>
+		</div>
+	`;
+	document.body.appendChild (overlay);
+	_logViewerEl = overlay;
+	void overlay.offsetWidth;
+	overlay.classList.add ('log-viewer--visible');
+
+	const listEl = overlay.querySelector ('.log-viewer__list');
+	const moreEl = overlay.querySelector ('.log-viewer__more');
+	const closeEl = overlay.querySelector ('.log-viewer__close');
+
+	closeEl.addEventListener ('click', closeLogViewer);
+	overlay.addEventListener ('click', (e) => { if (e.target === overlay) closeLogViewer (); });
+
+	const loadFirst = async () => {
+		_logViewerLoading = true;
+		const data = await fetchHistoryPage (null);
+		_logViewerLoading = false;
+		if (!data) {
+			listEl.innerHTML = '<div class="log-viewer__empty">로그를 불러오지 못했어요.</div>';
+			return;
+		}
+		_logViewerCursor = data.next_cursor || null;
+		_renderLogMessages (listEl, data.messages || [], false);
+		moreEl.hidden = !_logViewerCursor;
+		listEl.scrollTop = listEl.scrollHeight;
+	};
+	moreEl.addEventListener ('click', async () => {
+		if (_logViewerLoading || !_logViewerCursor) return;
+		_logViewerLoading = true;
+		const data = await fetchHistoryPage (_logViewerCursor);
+		_logViewerLoading = false;
+		if (!data) return;
+		_logViewerCursor = data.next_cursor || null;
+		_renderLogMessages (listEl, data.messages || [], true);
+		moreEl.hidden = !_logViewerCursor;
+	});
+	await loadFirst ();
+}
+
+function closeLogViewer () {
+	if (!_logViewerEl) return;
+	_logViewerEl.classList.remove ('log-viewer--visible');
+	const el = _logViewerEl;
+	setTimeout (() => { if (el.parentNode) el.parentNode.removeChild (el); }, 250);
+	_logViewerEl = null;
+	_logViewerCursor = null;
+}
+
+function ensureLogButton () {
+	if (document.querySelector ('.log-button')) return;
+	const game = document.querySelector ('[data-screen="game"]') || document.body;
+	const btn = document.createElement ('button');
+	btn.type = 'button';
+	btn.className = 'log-button';
+	btn.title = '대화 로그';
+	btn.setAttribute ('aria-label', '대화 로그 열기');
+	btn.textContent = '📜 로그';
+	btn.addEventListener ('click', (e) => {
+		e.preventDefault ();
+		e.stopPropagation ();
+		openLogViewer ();
+	});
+	game.appendChild (btn);
 }
 
 let pendingStreamResponse = null; // Promise<Response> — Save에서 즉시 시작하는 fetch
@@ -572,6 +928,27 @@ monogatari.script ({
 			return true;
 		},
 
+		// === 메인 메뉴: GET /sessions/me 후 새 게임 / 이어 하기 분기 (API_SPEC §2.1) ===
+		async function () {
+			const mode = await decideBootMode (this);
+			const boot = (this.storage ('boot') || {});
+			this.storage ({ boot: Object.assign ({}, boot, { mode }) });
+			return true;
+		},
+
+		// === 분기: resume 모드면 빌드업 스킵하고 LLMChat 직진 ===
+		{
+			'Conditional': {
+				'Condition': function () {
+					return ((this.storage ('boot') || {}).mode === 'resume') ? 'resume' : 'newgame';
+				},
+				'resume':  'jump LLMChat',
+				'newgame': 'jump NewGame'
+			}
+		}
+	],
+
+	'NewGame': [
 		// === 씬 1: 이름 입력 (검정 배경, 캐릭터 미노출) ===
 		{
 			'Input': {
@@ -719,11 +1096,41 @@ monogatari.script ({
 	],
 
 	'LLMChat': [
-		// 1) 진입 직후: pending 씬 인트로(있다면) 자동 재생 → 세션 부트스트랩 (suggestions UI는 미노출)
+		// 1) 진입 직후: HUD 셋업 + 로그 버튼 + (새 게임 한정) 세션 부트스트랩 + pending 씬 인트로 재생
 		async function () {
-			const playerName = (this.storage ('player') || {}).name || '플레이어';
-			await bootstrapSessionOnce (playerName);
-			await playSceneIntroIfPending (this);
+			const boot = this.storage ('boot') || {};
+			const game = this.storage ('game') || {};
+
+			// 이어 하기 모드: hydrate 로 player/game 이미 채워졌으므로 부트스트랩 스킵
+			if (boot.mode !== 'resume') {
+				const playerName = (this.storage ('player') || {}).name || '플레이어';
+				await bootstrapSessionOnce (playerName);
+			}
+
+			// HUD 표시 — 초기 진행도/호감도
+			ensureHUD ();
+			updateHUD ({
+				progress: typeof game.progress === 'number' ? game.progress : 0,
+				affinity: typeof game.affinity === 'number' ? game.affinity : 0
+			});
+			ensureLogButton ();
+
+			// resume 모드면 최근 메시지 1줄 회상 표시 (있다면)
+			if (boot.mode === 'resume') {
+				const recent = Array.isArray (boot.recent_messages) ? boot.recent_messages : [];
+				const lastAsst = [...recent].reverse ().find (m => m && m.role === 'ASSISTANT');
+				if (lastAsst?.content) {
+					const sayEl = document.querySelector ('[data-ui="say"]');
+					const whoEl = document.querySelector ('[data-ui="who"]');
+					if (whoEl) whoEl.textContent = '이세라';
+					if (sayEl) sayEl.innerHTML = escapeDialogText (lastAsst.content);
+					if (lastAsst.emotion) updateSeraSprite (lastAsst.emotion);
+				}
+				// 다음 입력으로 자연스럽게 이어가기 위해 boot.mode 만 'resume-played' 로 마크
+				this.storage ({ boot: Object.assign ({}, boot, { mode: 'resume-played' }) });
+			} else {
+				await playSceneIntroIfPending (this);
+			}
 			clearSuggestions ();
 			return true;
 		},
@@ -820,6 +1227,11 @@ monogatari.script ({
 						if (lastState.emotion) updateSeraSprite (lastState.emotion);
 						// 호감도 변동은 typewriter 진행 중에 즉시 시각화 → 답변 정서와 동기화
 						flashAffinityVignette (typeof lastState.affinity_delta === 'number' ? lastState.affinity_delta : 0);
+						// HUD 진행도/호감도 즉시 갱신 (US-012)
+						updateHUD ({
+							progress: typeof lastState.progress === 'number' ? lastState.progress : undefined,
+							affinity: typeof lastState.affinity === 'number' ? lastState.affinity : undefined
+						});
 						break;
 					case 'event_trigger':
 						triggeredEventId = payload?.event_id || null;
@@ -1029,6 +1441,7 @@ monogatari.script ({
 		async function () {
 			clearSuggestions ();
 			hideThinkingDots ();
+			hideHUD ();
 			// API_SPEC §5.1 — 엔딩 콘텐츠 페치 후 narrative + (가능하면) 엔딩 이미지 출력
 			const ending = await fetchEndingContent ();
 			if (!ending) {
