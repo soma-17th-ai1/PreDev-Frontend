@@ -63,12 +63,15 @@ monogatari.assets ('videos', {
 
 // 게임 이미지 정의
 monogatari.assets ('images', {
-
+	'sera_first': '이세라 첫등장.png'
 });
 
-// 배경 이미지 정의 (실 이미지가 있는 씬만 등록; 그라디언트 배경은 함수 액션으로 처리)
+// 배경 이미지 정의 (실 이미지 씬만 등록; 그라디언트 배경은 Function 액션으로 처리)
 monogatari.assets ('scenes', {
-	'posttower_lobby': 'entrance.png'
+	'posttower_lobby': 'entrance.png',
+	'elevator_panel':  'entrance.png',
+	'center_hall':     'entrance.png',
+	's1_room':         'entrance.png'
 });
 
 // 등장인물 정의
@@ -134,18 +137,12 @@ function spriteUrl (spriteKey) {
 	return `assets/characters/이세라_표정/이세라_표정/${encodeURI (file)}`;
 }
 
-// 씬별 배경. 소마 도착 이후(포스트타워 1F~)는 모두 entrance.png 단일 자산을 임시로 사용.
-// 소마 외 씬(아침 침실, 출근길)은 분위기 그라디언트 유지.
-const SOMA_BG = 'url("assets/scenes/entrance.png") center / cover no-repeat #1a1a1a';
+// 그라디언트 배경 (이미지 씬은 monogatari assets에 등록 후 show scene으로 처리)
 const SCENE_BG = {
 	fade_black:     '#0a0a0f',
 	bedroom_dawn:   'linear-gradient(180deg, #161927 0%, #2c2438 45%, #6b5564 100%)',
 	apartment_door: 'linear-gradient(180deg, #1f1816 0%, #3b2a23 55%, #5e4334 100%)',
-	train_interior: 'linear-gradient(180deg, #0d141c 0%, #1d2a36 55%, #38536a 100%)',
-	posttower_lobby: SOMA_BG,
-	elevator_panel:  SOMA_BG,
-	center_hall:     SOMA_BG,
-	s1_room:         SOMA_BG
+	train_interior: 'linear-gradient(180deg, #0d141c 0%, #1d2a36 55%, #38536a 100%)'
 };
 
 function escapeDialogText (text) {
@@ -166,7 +163,7 @@ async function setSceneBackground (cssValue, fadeMs = 500) {
 	const bgEl = document.querySelector ('[data-screen="game"] [data-ui="background"]')
 		|| document.querySelector ('[data-ui="background"]');
 	if (!bgEl) return;
-	// 같은 배경이면 페이드 생략 (예: 포스트타워→엘리베이터→센터홀→S1룸 모두 SOMA_BG)
+	// 같은 배경이면 페이드 생략
 	if (_currentSceneBg === cssValue) return;
 	_currentSceneBg = cssValue;
 	const half = Math.max (60, Math.floor (fadeMs / 2));
@@ -175,10 +172,20 @@ async function setSceneBackground (cssValue, fadeMs = 500) {
 	bgEl.style.opacity = '0';
 	await new Promise (r => setTimeout (r, half));
 	// 배경 즉시 스왑 (트랜지션 없음 → 보간 이상 현상 방지)
+	// background 단축속성 대신 개별 속성으로 설정 — Monogatari의 show scene이
+	// backgroundImage만 변경하는 방식과 충돌 없이 background-size/position을 공유할 수 있다.
 	bgEl.style.transition = 'none';
-	bgEl.style.backgroundImage = '';
-	bgEl.style.backgroundColor = '';
-	bgEl.style.background = cssValue;
+	const _isSolidColor = cssValue.startsWith ('#') || cssValue.startsWith ('rgb');
+	if (_isSolidColor) {
+		bgEl.style.backgroundImage = 'none';
+		bgEl.style.backgroundColor = cssValue;
+	} else {
+		bgEl.style.backgroundImage = cssValue; // linear-gradient(...)
+		bgEl.style.backgroundColor = '';
+	}
+	bgEl.style.backgroundSize = 'cover';
+	bgEl.style.backgroundPosition = 'center';
+	bgEl.style.backgroundRepeat = 'no-repeat';
 	void bgEl.offsetWidth; // reflow
 	// 페이드 인
 	bgEl.style.transition = `opacity ${half}ms ease`;
@@ -194,6 +201,8 @@ function showIntroLogo () {
 			_introLogoEl.remove ();
 			_introLogoEl = null;
 		}
+		// 인트로 표시 중에는 게임 텍스트박스/HUD가 보이지 않도록 body에 마커 클래스 부여
+		document.body.classList.add ('intro-active');
 		const overlay = document.createElement ('div');
 		overlay.className = 'intro-logo';
 		overlay.innerHTML = `
@@ -216,39 +225,11 @@ function showIntroLogo () {
 		await new Promise (r => setTimeout (r, 1500));
 		if (overlay.parentNode) overlay.parentNode.removeChild (overlay);
 		_introLogoEl = null;
+		document.body.classList.remove ('intro-active');
 		resolve ();
 	});
 }
 
-// 이세라 첫등장 CG 페이드 (visuals 레이어에 오버레이; 텍스트박스는 그대로 위에 보이도록)
-let _seraCGEl = null;
-function cgFadeIn () {
-	if (_seraCGEl) {
-		_seraCGEl.remove ();
-		_seraCGEl = null;
-	}
-	const visuals = document.querySelector ('[data-screen="game"] [data-content="visuals"]')
-		|| document.querySelector ('[data-screen="game"]')
-		|| document.body;
-	const cg = document.createElement ('div');
-	cg.className = 'cg-overlay';
-	cg.style.backgroundImage = `url("${encodeURI ('assets/gallery/이세라 첫등장.png')}")`;
-	visuals.appendChild (cg);
-	_seraCGEl = cg;
-
-	void cg.offsetWidth;
-	cg.classList.add ('cg-overlay--visible');
-	return new Promise (r => setTimeout (r, 5000));
-}
-
-async function cgFadeOut () {
-	if (!_seraCGEl) return;
-	const cg = _seraCGEl;
-	cg.classList.add ('cg-overlay--leaving');
-	await new Promise (r => setTimeout (r, 2000));
-	if (cg.parentNode) cg.parentNode.removeChild (cg);
-	_seraCGEl = null;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 미연시 마이크로 인터랙션 헬퍼
@@ -262,7 +243,10 @@ function updateSeraSprite (emotion) {
 	_seraCurrentSprite = spriteKey;
 
 	const charEl = document.querySelector ('[data-character="y"]');
-	if (!charEl) return;                                 // 빌드업 전이면 sprite 없음
+	if (!charEl) return;                                 // 빌드업 전이면 sprite 없음 → 무시
+	                                                     //   (이어 하기 시에는 monogatari loadFromSlot
+	                                                     //    이 'show character y' 액션을 재현해 IMG 를
+	                                                     //    복원한다. DOM 직접 주입은 하지 않는다.)
 
 	const url = spriteUrl (spriteKey);
 	const fadeMs = SERA_FADE_MS[emotion] ?? 350;
@@ -435,6 +419,10 @@ async function fetchSceneIntroDialogues () {
 }
 
 // 텍스트박스를 직접 조작해 한 줄 typewriter + 진행 대기
+// opts.who   : 화자 이름 표시 (없으면 narration 으로 처리)
+// opts.id    : dialog-log 에 push 할 character id ('y' 등). 미지정 시 'narrator'
+// opts.color : 화자 컬러 (dialog-log 라벨 컬러)
+// opts.silentLog : true 면 dialog-log push 생략 (이어 하기 시 과거 메시지 재현 등)
 function typewriteAndAwait (text, opts = {}) {
 	const sayEl = document.querySelector ('[data-ui="say"]');
 	const whoEl = document.querySelector ('[data-ui="who"]');
@@ -458,6 +446,14 @@ function typewriteAndAwait (text, opts = {}) {
 				skip = true;
 			} else {
 				cleanup ();
+				if (!opts.silentLog) {
+					pushDialogLog ({
+						id: opts.id || (opts.who ? 'y' : 'narrator'),
+						name: opts.who || '',
+						color: opts.color || (opts.who === '이세라' ? '#ffb7d8' : '#fff'),
+						dialog: escapeDialogText (text)
+					});
+				}
 				resolve ();
 			}
 		};
@@ -484,16 +480,32 @@ function typewriteAndAwait (text, opts = {}) {
 	});
 }
 
+// 이미 인트로를 재생한 씬 id 들을 세션 단위로 기억 (게임 재시작 시 cleanupCustomUI 로 초기화)
+const _playedSceneIntros = new Set ();
 async function playSceneIntroIfPending (storageRef) {
 	const llm = storageRef.storage ('llm') || {};
+	const game = storageRef.storage ('game') || {};
 	const target = llm.next_scene_id;
+	// 가드 #1: pending 없음 / 엔딩 씬은 LLMEnd 가 처리
 	if (!target || /^SCENE_ENDING_/.test (target)) return;
+	// 가드 #2: 이미 진입한 씬이면 재생 안 함. BE 가 매 chat 응답마다 동일 scene_transition 을
+	// 재전송하는 케이스에서 인트로 대사가 무한 반복되는 버그 방지.
+	if (target === game.current_scene_id || _playedSceneIntros.has (target)) {
+		storageRef.storage ({ llm: Object.assign ({}, llm, { next_scene_id: '' }) });
+		return;
+	}
 	const meta = await fetchSceneIntroDialogues ();
 	if (!meta || !Array.isArray (meta.intro_dialogues) || meta.intro_dialogues.length === 0) {
 		// 페치 실패는 silent — 다음 LLMChat 그대로 진행
 		storageRef.storage ({ llm: Object.assign ({}, llm, { next_scene_id: '' }) });
 		return;
 	}
+	// 인트로 재생 시작 직전에 미리 가드 등록 — 재생 도중 storage 가 바뀌어도 다음 진입 시 중복 방지.
+	_playedSceneIntros.add (target);
+	storageRef.storage ({
+		game: Object.assign ({}, game, { current_scene_id: target }),
+		llm: Object.assign ({}, llm, { next_scene_id: '' })
+	});
 	for (const d of meta.intro_dialogues) {
 		if (d.type === 'character') {
 			if (d.emotion) updateSeraSprite (d.emotion);
@@ -502,11 +514,6 @@ async function playSceneIntroIfPending (storageRef) {
 			await typewriteAndAwait (d.text || '', { who: '' });
 		}
 	}
-	const game = storageRef.storage ('game') || {};
-	storageRef.storage ({
-		game: Object.assign ({}, game, { current_scene_id: target }),
-		llm: Object.assign ({}, llm, { next_scene_id: '' })
-	});
 }
 
 // 엔딩 콘텐츠 페치 (API_SPEC §5.1)
@@ -666,27 +673,74 @@ async function _confirmReset () {
 	});
 }
 
-// 결정: 'new' (빌드업 → LLMChat) | 'resume' (LLMChat 직진) | 'new-bypass' (BE 미가용 폴백)
+// 로컬 monogatari 슬롯에 저장된 게임이 있는지 확인 (loadFromSlot 가능 여부 판단).
+async function _hasLocalAutoSave () {
+	try {
+		const data = await monogatari.Storage.get ('AutoSave_1');
+		return !!(data && data.Engine && data.Engine.Label);
+	} catch (e) {
+		return false;
+	}
+}
+
+// 결정: 'new' (빌드업 → LLMChat) | 'resume' (loadFromSlot 으로 분기 — 이 함수 자체가 halt) | 'new-bypass'
 async function decideBootMode (storageRef) {
 	const me = await fetchSessionMe ();
-	if (!me) {
-		// BE 미가용 — 기존 흐름 그대로 새 게임 진행 (silent fallback)
-		console.warn ('[main-menu] BE 미가용 — 기본 새 게임으로 진행');
-		return 'new-bypass';
-	}
-	const canResume = !!(me.has_session && me.is_started && !me.is_ended);
+	const beHasSession = !!(me?.has_session && me?.is_started && !me?.is_ended);
+	const localHasSave = await _hasLocalAutoSave ();
+	// 이어 하기 버튼은 BE 세션과 로컬 저장 둘 중 하나라도 있으면 노출.
+	// 로컬 저장이 있으면 monogatari loadFromSlot 으로 즉시 복귀 가능, 없으면 BE 만 의존.
+	const canResume = beHasSession || localHasSave;
 	const choice = await _renderMainMenuOverlay (canResume);
 
 	if (choice === 'resume') {
+		// (1) 로컬 monogatari 슬롯이 있으면 그걸 사용. dialog-log/씬/캐릭터/storage 모두 복원.
+		if (localHasSave) {
+			try {
+				await monogatari.loadFromSlot ('AutoSave_1');
+				// 복원된 시점에 BE 세션은 이미 부트스트랩 되어 있다고 간주 → /sessions/me/start 재호출 방지.
+				// (쿠키가 만료됐다면 다음 /chat 에서 자연스럽게 에러로 노출됨)
+				_sessionBootstrapped = true;
+				setGameActive (true);
+				// loadFromSlot 후 saved step 부터 실행 재개 (slot-container 의 표준 패턴).
+				const labels = monogatari.label ();
+				const step = monogatari.state ('step');
+				if (labels && labels[step]) {
+					monogatari.run (labels[step]);
+				}
+				// 현재 Start 라벨의 step 2 는 영원히 resolve 하지 않음 — 위 monogatari.run 이 실제 진행을 가져감.
+				return new Promise (() => {});
+			} catch (e) {
+				console.warn ('[resume] loadFromSlot 실패, BE 폴백 시도:', e);
+				// fall through to BE-driven resume
+			}
+		}
+		// (2) 로컬 저장이 없거나 loadFromSlot 실패 시 → BE /resume 로 폴백.
+		//     이 경로는 빌드업을 건너뛰므로 캐릭터 sprite 가 안 보일 수 있음.
+		//     첫 chat 이 끝나면 자동 saveTo 가 실행되므로 다음 이어 하기부터는 (1) 경로가 정상 동작.
+		if (!me) {
+			alert ('이전 기록을 불러오지 못했어요 (서버 미가용). 새 게임으로 시작할게요.');
+			return 'new-bypass';
+		}
 		const r = await fetchResume ();
 		if (!r.ok) {
-			alert ('이전 기록을 불러오지 못했어요. 새 게임으로 시작할게요.');
+			const reason = r.status === 401 || r.status === 404
+				? '브라우저에 세션 쿠키가 저장되지 않은 것 같습니다.\n\n' +
+				  '• 브라우저 설정에서 서드파티 쿠키 허용을 켜주세요.\n' +
+				  '• 시크릿/프라이빗 모드면 일반 모드로 시도해 보세요.\n' +
+				  '• 그래도 안 되면 새 게임으로 시작합니다.'
+				: '이전 기록을 불러오지 못했어요. 새 게임으로 시작할게요.';
+			alert (reason);
 			return await _startFreshOrConfirm (me);
 		}
 		_hydrateFromResume (storageRef, r.data);
 		return 'resume';
 	}
 	// 새 게임
+	if (!me) {
+		console.warn ('[main-menu] BE 미가용 — 기본 새 게임으로 진행');
+		return 'new-bypass';
+	}
 	return await _startFreshOrConfirm (me);
 }
 
@@ -796,46 +850,84 @@ function hideHUD () {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 로그 뷰어 — GET /chat/history (limit=50, before 커서)
+// 대화 로그 — monogatari 의 <dialog-log> 컴포넌트가 single source of truth.
+// 일반 dialog 액션 ('p ...', 'y ...', narration) 은 자동으로 push 되며,
+// SSE 로 받은 LLM 응답이나 typewriteAndAwait 으로 출력한 인트로 대사는
+// pushDialogLog() 로 명시적으로 push 한다.
 // ─────────────────────────────────────────────────────────────────────────────
-let _logViewerEl = null;
-let _logViewerCursor = null;
-let _logViewerLoading = false;
 
-async function fetchHistoryPage (before) {
-	const params = new URLSearchParams ({ limit: '50' });
-	if (before) params.set ('before', before);
+// monogatari dialog-log 컴포넌트로 항목 push.
+// id  : 'narrator' | 'centered' | 캐릭터 id (예: 'p', 'y')
+// name: 캐릭터 이름. id 가 narrator/centered 면 무시
+// color: 캐릭터 컬러
+// dialog: 표시할 HTML (이미 이스케이프된 안전한 문자열)
+function pushDialogLog ({ id = 'narrator', name = '', color = '#fff', dialog = '' }) {
+	if (!dialog) return;
 	try {
-		const res = await fetch (`${API_BASE}/chat/history?${params}`, { credentials: 'include' });
-		if (!res.ok) return null;
-		const json = await res.json ();
-		return json?.data || null;
-	} catch (e) { return null; }
-}
-
-function _logRoleLabel (role) {
-	switch (role) {
-		case 'USER': return '나';
-		case 'ASSISTANT': return '이세라';
-		case 'NARRATION': return '나레이션';
-		case 'SYSTEM_EVENT': return '시스템';
-		default: return role;
+		const Component = monogatari?.component?.('dialog-log');
+		if (!Component) return;
+		Component.instances ((instance) => {
+			instance.write ({
+				id,
+				character: { name, color },
+				dialog
+			});
+		});
+	} catch (e) {
+		// 엔진 라이프사이클 외부에서 호출됐을 수 있음 → silent
 	}
 }
 
-function _renderLogMessages (listEl, messages, prepend) {
+// monogatari dialog-log 의 현재 항목들을 읽어 우리 로그뷰어용 row 데이터로 변환.
+// dialog-log 의 DOM 구조: <div data-spoke="<id>" class="named|unnamed">
+//   .named  : <span style="color:..."> 이름 </span><p> 대사 </p>
+//   .unnamed: <p> 대사 </p>
+function readDialogLogEntries () {
+	const logEl = document.querySelector ('[data-component="dialog-log"]');
+	if (!logEl) return [];
+	const entries = [];
+	logEl.querySelectorAll ('[data-spoke]').forEach (entry => {
+		const id = entry.getAttribute ('data-spoke') || 'narrator';
+		const isNamed = entry.classList.contains ('named');
+		const nameSpan = entry.querySelector ('span');
+		const dialogP = entry.querySelector ('p');
+		entries.push ({
+			id,
+			named: isNamed,
+			name: isNamed && nameSpan ? nameSpan.textContent.trim () : '',
+			color: isNamed && nameSpan ? (nameSpan.style.color || '') : '',
+			dialog: dialogP ? dialogP.innerHTML : ''
+		});
+	});
+	return entries;
+}
+
+let _logViewerEl = null;
+
+function _renderUnifiedLog (listEl, entries) {
+	listEl.innerHTML = '';
+	if (!entries.length) {
+		listEl.innerHTML = '<div class="log-viewer__empty">아직 대화가 없어요.</div>';
+		return;
+	}
 	const fragment = document.createDocumentFragment ();
-	messages.forEach (m => {
+	entries.forEach (entry => {
 		const row = document.createElement ('div');
-		row.className = 'log-viewer__row log-viewer__row--' + String (m.role || 'NARRATION').toLowerCase ();
+		const variant = entry.id === 'p' ? 'user'
+			: entry.id === 'y' ? 'assistant'
+			: 'narration';
+		row.className = `log-viewer__row log-viewer__row--${variant}`;
+		const label = entry.named && entry.name
+			? entry.name
+			: (entry.id === 'centered' ? '' : '나레이션');
+		const colorStyle = entry.color ? ` style="color:${entry.color}"` : '';
 		row.innerHTML = `
-			<div class="log-viewer__role">${_logRoleLabel (m.role)}</div>
-			<div class="log-viewer__bubble">${escapeDialogText (m.content || '')}</div>
+			<div class="log-viewer__role"${colorStyle}>${escapeDialogText (label)}</div>
+			<div class="log-viewer__bubble">${entry.dialog}</div>
 		`;
 		fragment.appendChild (row);
 	});
-	if (prepend) listEl.insertBefore (fragment, listEl.firstChild);
-	else listEl.appendChild (fragment);
+	listEl.appendChild (fragment);
 }
 
 async function openLogViewer () {
@@ -848,7 +940,6 @@ async function openLogViewer () {
 				<span class="log-viewer__title">대화 로그</span>
 				<button type="button" class="log-viewer__close" aria-label="닫기">✕</button>
 			</div>
-			<button type="button" class="log-viewer__more" hidden>이전 보기</button>
 			<div class="log-viewer__list" tabindex="0"></div>
 		</div>
 	`;
@@ -858,36 +949,13 @@ async function openLogViewer () {
 	overlay.classList.add ('log-viewer--visible');
 
 	const listEl = overlay.querySelector ('.log-viewer__list');
-	const moreEl = overlay.querySelector ('.log-viewer__more');
 	const closeEl = overlay.querySelector ('.log-viewer__close');
 
 	closeEl.addEventListener ('click', closeLogViewer);
 	overlay.addEventListener ('click', (e) => { if (e.target === overlay) closeLogViewer (); });
 
-	const loadFirst = async () => {
-		_logViewerLoading = true;
-		const data = await fetchHistoryPage (null);
-		_logViewerLoading = false;
-		if (!data) {
-			listEl.innerHTML = '<div class="log-viewer__empty">로그를 불러오지 못했어요.</div>';
-			return;
-		}
-		_logViewerCursor = data.next_cursor || null;
-		_renderLogMessages (listEl, data.messages || [], false);
-		moreEl.hidden = !_logViewerCursor;
-		listEl.scrollTop = listEl.scrollHeight;
-	};
-	moreEl.addEventListener ('click', async () => {
-		if (_logViewerLoading || !_logViewerCursor) return;
-		_logViewerLoading = true;
-		const data = await fetchHistoryPage (_logViewerCursor);
-		_logViewerLoading = false;
-		if (!data) return;
-		_logViewerCursor = data.next_cursor || null;
-		_renderLogMessages (listEl, data.messages || [], true);
-		moreEl.hidden = !_logViewerCursor;
-	});
-	await loadFirst ();
+	_renderUnifiedLog (listEl, readDialogLogEntries ());
+	listEl.scrollTop = listEl.scrollHeight;
 }
 
 function closeLogViewer () {
@@ -896,7 +964,6 @@ function closeLogViewer () {
 	const el = _logViewerEl;
 	setTimeout (() => { if (el.parentNode) el.parentNode.removeChild (el); }, 250);
 	_logViewerEl = null;
-	_logViewerCursor = null;
 }
 
 function ensureLogButton () {
@@ -914,6 +981,81 @@ function ensureLogButton () {
 		openLogViewer ();
 	});
 	game.appendChild (btn);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 라이프사이클 통합 — 게임 시작/종료 동기화 + Hide(distraction-free) 동기화
+// 핵심 규칙:
+//   - body.game-active : LLMChat 진입 시 부착, End/Quit 에서 제거.
+//                        CSS 가 이 클래스 없을 때 HUD/log-button/suggestions 등 강제 숨김.
+//   - body.distraction-free : monogatari Hide 토글과 동기화. CSS 로 커스텀 UI 함께 숨김.
+// ─────────────────────────────────────────────────────────────────────────────
+function setGameActive (active) {
+	if (active) document.body.classList.add ('game-active');
+	else document.body.classList.remove ('game-active');
+}
+
+// 메인 화면(=게임 비활성)으로 돌아갈 때 잔존 커스텀 UI 정리.
+function cleanupCustomUI () {
+	setGameActive (false);
+	clearSuggestions ();
+	hideThinkingDots ();
+	hideHUD ();
+	if (_logViewerEl) closeLogViewer ();
+	document.querySelectorAll ('.log-button, .event-toast, .affinity-vignette').forEach (n => n.remove ());
+	// 메인 메뉴 오버레이/확인 모달도 잔존하면 제거
+	document.querySelectorAll ('.main-menu-overlay, .confirm-modal').forEach (n => n.remove ());
+	// dialog-log 도 비워서 다음 세션의 resume 시 recent_messages 가 중복 push 되지 않도록.
+	const dlogList = document.querySelector ('[data-component="dialog-log"] [data-content="log"]');
+	if (dlogList) dlogList.querySelectorAll ('[data-spoke]').forEach (n => n.remove ());
+	// 부트스트랩 가드/스프라이트 캐시/씬 인트로 가드 리셋 — 다음 게임 시작 시 깨끗한 상태로 출발.
+	_sessionBootstrapped = false;
+	_seraCurrentSprite = null;
+	_currentSceneBg = null;
+	_playedSceneIntros.clear ();
+}
+
+// monogatari 의 Hide 동작과 우리 커스텀 UI 동기화. h 키 / 우측 quick-menu 버튼 둘 다 처리.
+function _syncDistractionFree () {
+	const isHidden = !!(monogatari?.global?.('distraction_free'));
+	if (document.body) document.body.classList.toggle ('distraction-free', isHidden);
+}
+
+function _installLifecycleHooks () {
+	if (!document.body) return;
+	document.addEventListener ('click', (e) => {
+		if (e.target?.closest?.('[data-action="distraction-free"]')) {
+			// monogatari 가 global 을 토글한 직후 동기화하기 위해 microtask 뒤로 미룸.
+			setTimeout (_syncDistractionFree, 0);
+		}
+	});
+	document.addEventListener ('keydown', (e) => {
+		if (e.key === 'h' || e.key === 'H') {
+			if (e.target?.matches?.('input, textarea, select')) return;
+			setTimeout (_syncDistractionFree, 0);
+		}
+	});
+
+	// 메인 화면이 다시 보이는 순간(=Quit) 커스텀 UI 정리.
+	// MutationObserver 로 [data-screen="main"] 의 가시성 변화를 감지한다.
+	if (typeof MutationObserver === 'undefined') return;
+	const observer = new MutationObserver (() => {
+		const mainScreen = document.querySelector ('[data-screen="main"]');
+		const gameScreen = document.querySelector ('[data-screen="game"]');
+		if (!mainScreen || !gameScreen) return;
+		const mainVisible = mainScreen.offsetParent !== null;
+		const gameVisible = gameScreen.offsetParent !== null;
+		if (mainVisible && !gameVisible && document.body.classList.contains ('game-active')) {
+			cleanupCustomUI ();
+		}
+	});
+	observer.observe (document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'open', 'data-screen'] });
+}
+
+if (document.readyState === 'loading') {
+	document.addEventListener ('DOMContentLoaded', _installLifecycleHooks, { once: true });
+} else {
+	_installLifecycleHooks ();
 }
 
 let pendingStreamResponse = null; // Promise<Response> — Save에서 즉시 시작하는 fetch
@@ -977,9 +1119,17 @@ monogatari.script ({
 		},
 
 		// === 씬 2: 아침 기상 (침실 천장 분위기, 내레이션·독백만) ===
-		async function () {
-			await setSceneBackground (SCENE_BG.bedroom_dawn, 500);
-			return true;
+		{
+			'Function': {
+				'Apply': async function () {
+					await setSceneBackground (SCENE_BG.bedroom_dawn, 500);
+					return true;
+				},
+				'Revert': async function () {
+					await setSceneBackground (SCENE_BG.fade_black, 300);
+					return true;
+				}
+			}
 		},
 		'4월 13일, 월요일. 화창한 아침.',
 		'또로로롱~ 오니쨩~! 일어날 시간이에요!!',
@@ -992,40 +1142,47 @@ monogatari.script ({
 		'p 하아… 이제야 좀 상쾌하네. 오늘은 처음 센터에 가는 날이니까 빨리 준비해야지.',
 
 		// === 씬 3: 출근길 (현관 → 6호선) ===
-		async function () {
-			await setSceneBackground (SCENE_BG.apartment_door, 500);
-			return true;
+		{
+			'Function': {
+				'Apply': async function () {
+					await setSceneBackground (SCENE_BG.apartment_door, 500);
+					return true;
+				},
+				'Revert': async function () {
+					await setSceneBackground (SCENE_BG.bedroom_dawn, 300);
+					return true;
+				}
+			}
 		},
 		'철컥— 현관문이 닫힌다.',
 
-		async function () {
-			await setSceneBackground (SCENE_BG.train_interior, 500);
-			return true;
+		{
+			'Function': {
+				'Apply': async function () {
+					await setSceneBackground (SCENE_BG.train_interior, 500);
+					return true;
+				},
+				'Revert': async function () {
+					await setSceneBackground (SCENE_BG.apartment_door, 300);
+					return true;
+				}
+			}
 		},
 		'쿠구구궁… 덜컹… 덜컹…',
 		'p 이건 탈 때마다 왜 이리 시끄러워…',
 		'끼이이익… 덜컹… 슈우우우욱.',
 
 		// === 씬 4: 포스트타워 진입 (실 이미지 + 엘리베이터 분위기) ===
-		async function () {
-			await setSceneBackground (SCENE_BG.posttower_lobby, 500);
-			return true;
-		},
+		'show scene posttower_lobby with fadeIn',
 		'저벅… 저벅…',
 		'p 오, 여기가 소마 건물이구나. 7층이었지, 아마?',
 
-		async function () {
-			await setSceneBackground (SCENE_BG.elevator_panel, 500);
-			return true;
-		},
+		'show scene elevator_panel with fadeIn',
 		'7층 버튼을 누른다.',
 		'띵— 문이 열린다.',
 
 		// === 씬 5: 7층 센터 홀 (밝은 분위기) ===
-		async function () {
-			await setSceneBackground (SCENE_BG.center_hall, 500);
-			return true;
-		},
+		'show scene center_hall with fadeIn',
 		'p 오오! 이곳이 센터구나. 안이 생각보다 훨씬 깔끔한걸?',
 		'운 좋게 소프트웨어 마에스트로에 합격한 나는, 워크숍이 끝나고 처음으로 센터에 발을 들였다.',
 		'p 센터 오픈 첫날이라 그런지 사람이 꽤 많네…! 워크숍 때는 제대로 얘기를 못해봤지만… 오늘은 꼭 팀원을 구해야지!',
@@ -1037,30 +1194,20 @@ monogatari.script ({
 		'p 아니야, 지금도 늦지 않았어. 열심히 네트워킹하자!',
 
 		// === 씬 6: S1 룸 첫 조우 (이세라 첫등장 CG 페이드 인 → 스프라이트 등장) ===
-		async function () {
-			await setSceneBackground (SCENE_BG.s1_room, 500);
-			return true;
-		},
+		'show scene s1_room with fadeIn',
 		'— S1 룸 —',
 		'p 아, 여기가 그곳이구나! 내가 면접 봤던 곳… 그땐 좁아 보였는데, 벽을 치우니까 엄청 넓네.',
 		'저벅… 저벅… 툭.',
 		'p 어?',
 		'p 어..? 어…???? 아닛, 저 사람은…?',
 
-		// CG 페이드 인을 트리거 (5s) — 사용자가 내레이션을 클릭으로 넘기는 동안 자연스럽게 떠오름
-		async function () {
-			cgFadeIn (); // fire-and-forget: 내레이션이 진행되는 동안 5초에 걸쳐 떠오르도록
-			return true;
-		},
+		// CG 페이드 인 — monogatari show image로 Revert 지원
+		'show image sera_first with fadeIn',
 		'창가 앞, 화사한 햇볕이 내리쬐는 자리. 신비로운 분위기의 소녀가 앉아 있었다.',
 		'천사의 날개 같은 흰 머리, 사람을 홀리는 듯한 파란 눈, 가녀린 속눈썹, 보호본능을 자극하는 가녀린 체구. 그야말로 나의 이상향과 같은 존재였다.',
 		'그녀의 노트북 화면엔 검은 터미널 위로 GDB 프롬프트가 깜빡이고, 옆에는 다 식어버린 아메리카노가 놓여 있었다.',
-
-		// CG 페이드 아웃 (2s) → 본격적인 이세라 등장
-		async function () {
-			await cgFadeOut ();
-			return true;
-		},
+		// CG 페이드 아웃 → 본격적인 이세라 등장
+		'hide image sera_first with fadeOut',
 
 		// === 씬 7: 첫 인사 (이세라 스프라이트 등장; 평온 → 행복 → 평온) ===
 		'show character y calm with fadeIn',
@@ -1101,6 +1248,9 @@ monogatari.script ({
 			const boot = this.storage ('boot') || {};
 			const game = this.storage ('game') || {};
 
+			// 게임 활성 상태 마커 — CSS 가 이걸 보고 HUD/log-button/suggestions 등을 표시한다.
+			setGameActive (true);
+
 			// 이어 하기 모드: hydrate 로 player/game 이미 채워졌으므로 부트스트랩 스킵
 			if (boot.mode !== 'resume') {
 				const playerName = (this.storage ('player') || {}).name || '플레이어';
@@ -1115,23 +1265,44 @@ monogatari.script ({
 			});
 			ensureLogButton ();
 
-			// resume 모드면 최근 메시지 1줄 회상 표시 (있다면)
+			// 이어 하기는 monogatari loadFromSlot 이 처리한다 — engine 이 storage/state/history/scene/
+			// character 를 모두 복원하므로 FE 에서 별도 재현(sprite/배경/recent_messages push)을 하지 않는다.
+			// 로컬 슬롯이 없어 BE /resume 폴백 경로로 진입한 경우(boot.mode === 'resume')에만
+			// 최소 회상 표시(마지막 ASSISTANT 라인)를 한다. 이 경로에서는 캐릭터 sprite 가 비어 있을 수 있으나,
+			// 첫 채팅이 끝나면 saveTo 가 동작해 다음 이어 하기부터는 loadFromSlot 경로로 정상 복원된다.
 			if (boot.mode === 'resume') {
 				const recent = Array.isArray (boot.recent_messages) ? boot.recent_messages : [];
+				const playerName = (this.storage ('player') || {}).name || '플레이어';
+				recent.forEach (m => {
+					if (!m || !m.content) return;
+					if (m.role === 'USER') {
+						pushDialogLog ({ id: 'p', name: playerName, color: '#8ad8ff', dialog: escapeDialogText (m.content) });
+					} else if (m.role === 'ASSISTANT') {
+						pushDialogLog ({ id: 'y', name: '이세라', color: '#ffb7d8', dialog: escapeDialogText (m.content) });
+					} else {
+						pushDialogLog ({ id: 'narrator', dialog: escapeDialogText (m.content) });
+					}
+				});
 				const lastAsst = [...recent].reverse ().find (m => m && m.role === 'ASSISTANT');
 				if (lastAsst?.content) {
 					const sayEl = document.querySelector ('[data-ui="say"]');
 					const whoEl = document.querySelector ('[data-ui="who"]');
 					if (whoEl) whoEl.textContent = '이세라';
 					if (sayEl) sayEl.innerHTML = escapeDialogText (lastAsst.content);
-					if (lastAsst.emotion) updateSeraSprite (lastAsst.emotion);
 				}
-				// 다음 입력으로 자연스럽게 이어가기 위해 boot.mode 만 'resume-played' 로 마크
 				this.storage ({ boot: Object.assign ({}, boot, { mode: 'resume-played' }) });
 			} else {
 				await playSceneIntroIfPending (this);
 			}
 			clearSuggestions ();
+
+			// 다음 입력 직전 상태(step 0 끝)를 monogatari 슬롯 1 에 저장 → 이어 하기 시 input 모달 직전으로 복귀.
+			// 첫 chat 이전(buildup 직후)에도 저장되므로 buildup 도중 quit 후 이어 하기로 채팅부터 시작 가능.
+			try {
+				monogatari.saveTo ('AutoSaveLabel', 1, '마지막 대화');
+			} catch (e) {
+				console.warn ('[save] auto-save 실패:', e);
+			}
 			return true;
 		},
 
@@ -1213,14 +1384,21 @@ monogatari.script ({
 			let lastState = null;
 
 			const handleSseEvent = (event, payload) => {
-				switch (event) {
+				const evtKey = String (event || '').toLowerCase ();
+				switch (evtKey) {
 					case 'meta':
 						if (payload?.emotion) updateSeraSprite (payload.emotion);
 						metaArrived = true;
 						hideThinkingDots ();
 						break;
 					case 'delta':
+					case 'message':
+						// delta 페이로드는 보통 { text } 이지만 BE 가 chunk/content/delta 같은
+						// 키를 쓰는 케이스도 있어 폴백을 둔다. 'message'(default 이벤트)도 동일 처리.
 						if (typeof payload?.text === 'string') textBuffer += payload.text;
+						else if (typeof payload?.chunk === 'string') textBuffer += payload.chunk;
+						else if (typeof payload?.content === 'string') textBuffer += payload.content;
+						else if (typeof payload?.delta === 'string') textBuffer += payload.delta;
 						break;
 					case 'state':
 						lastState = payload || {};
@@ -1246,7 +1424,35 @@ monogatari.script ({
 							textBuffer = '지금은 연결이 좀 불안정한 것 같아요. 잠시 후에 다시 말을 걸어주실래요?';
 						}
 						break;
+					default:
+						console.warn ('[chat] 처리되지 않은 SSE 이벤트:', event, payload);
 				}
+			};
+
+			// SSE 블록 1개 파싱 — `event:`와 `data:` 라인 처리.
+			// done flag 를 ref 객체로 받아 'end' 이벤트 시 외부 루프 종료 신호 전달.
+			const parseSseBlock = (block, doneRef) => {
+				let evt = 'message';
+				let dataStr = '';
+				for (const rawLine of block.split (/\r?\n/)) {
+					const line = rawLine;
+					if (line.startsWith ('event:')) evt = line.slice (6).trim ();
+					else if (line.startsWith ('data:')) {
+						// SSE spec: 'data:' 뒤 공백 1개는 옵션 — slice 후 trim 으로 안전 처리
+						const part = line.slice (5).replace (/^\s/, '');
+						dataStr += (dataStr ? '\n' : '') + part;
+					}
+					// 그 외(:, id:, retry:)는 무시
+				}
+				if (evt === 'end') { doneRef.done = true; return; }
+				if (!dataStr) return;
+				let payload;
+				try { payload = JSON.parse (dataStr); }
+				catch (e) {
+					console.warn ('[chat] SSE data JSON parse 실패:', dataStr.slice (0, 200));
+					return;
+				}
+				handleSseEvent (evt, payload);
 			};
 
 			try {
@@ -1260,29 +1466,33 @@ monogatari.script ({
 				(async () => {
 					try {
 						let buf = '';
-						let done = false;
-						while (!done) {
+						const doneRef = { done: false };
+						let processedAny = false;
+						while (!doneRef.done) {
 							const { done: d, value } = await reader.read ();
 							if (d) break;
 							buf += decoder.decode (value, { stream: true });
-							// SSE 이벤트 블록은 빈 줄(\n\n)로 구분
-							const blocks = buf.split ('\n\n');
+							// SSE 이벤트 블록은 빈 줄로 구분 — CRLF/LF 모두 허용
+							const blocks = buf.split (/\r?\n\r?\n/);
 							buf = blocks.pop () || '';
 							for (const block of blocks) {
 								if (!block.trim ()) continue;
-								let evt = 'message';
-								let dataStr = '';
-								for (const line of block.split ('\n')) {
-									if (line.startsWith ('event:')) evt = line.slice (6).trim ();
-									else if (line.startsWith ('data:')) dataStr += line.slice (5).trim ();
-								}
-								if (evt === 'end') { done = true; break; }
-								if (!dataStr) continue;
-								let payload;
-								try { payload = JSON.parse (dataStr); }
-								catch { continue; }
-								handleSseEvent (evt, payload);
+								parseSseBlock (block, doneRef);
+								processedAny = true;
+								if (doneRef.done) break;
 							}
+						}
+						// 스트림이 닫혔는데 마지막 블록이 trailing newline 없이 끝난 경우
+						buf += decoder.decode ();
+						if (buf.trim ()) {
+							for (const block of buf.split (/\r?\n\r?\n/)) {
+								if (!block.trim ()) continue;
+								parseSseBlock (block, doneRef);
+								processedAny = true;
+							}
+						}
+						if (!processedAny) {
+							console.warn ('[chat] SSE 스트림이 종료됐지만 파싱된 이벤트가 없습니다. BE 포맷을 확인하세요.');
 						}
 					} catch (e) {
 						console.error ('[chat] stream read error:', e);
@@ -1391,6 +1601,21 @@ monogatari.script ({
 
 			document.removeEventListener ('click', handleInteract);
 			document.removeEventListener ('keydown', handleInteract);
+
+			// 이세라 응답 전체를 monogatari dialog-log 에 push.
+			// (사용자 입력은 'p {{llm.prompt}}' 가 자동 push 하므로 여기서는 ASSISTANT 만 처리)
+			if (textBuffer.trim ()) {
+				pushDialogLog ({
+					id: 'y',
+					name: '이세라',
+					color: '#ffb7d8',
+					dialog: escapeDialogText (textBuffer)
+				});
+			}
+
+			// 자동 저장은 다음 LLMChat 첫 스텝(step 0)에서 수행한다 — 여기(step 3)에서 saveTo 하면
+			// loadFromSlot 시 SSE 핸들러가 pendingStreamResponse=null 인 상태로 재실행되어 에러 메시지가
+			// 출력되는 문제가 있다. step 0 에서 저장하면 복원 시 input 모달 직전 상태로 깨끗하게 복귀.
 
 			// state는 SSE 도착 시점에 이미 vignette를 발사했으므로 여기서는 storage만 정리
 			if (lastState) {

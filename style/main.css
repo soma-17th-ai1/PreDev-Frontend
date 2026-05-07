@@ -18,8 +18,45 @@
 **/
 
 /* General Style */
-body {
+html, body {
+	height: 100%;
+	overflow: hidden;
+	overscroll-behavior: none;
+}
+[data-screen="game"] {
+	overflow: hidden;
+}
 
+/* 인트로 로고 표시 중에는 게임 UI(텍스트박스/HUD/로그버튼)가 보이지 않도록 강제로 가린다.
+ * 첫 Start 스텝 진입 시 monogatari가 game-screen을 활성화하면서 빈 텍스트박스가
+ * 인트로 위에 잠깐 노출되는 버그가 있었음. */
+body.intro-active [data-screen="game"] [data-component="text-box"],
+body.intro-active [data-screen="game"] [data-component="quick-menu"],
+body.intro-active .hud-progress,
+body.intro-active .log-button {
+	visibility: hidden !important;
+}
+
+/* monogatari Hide(distraction-free) 모드와 동기화 — 커스텀 UI도 함께 숨긴다.
+ * `body.distraction-free` 클래스는 script.js에서 [data-action="distraction-free"] 클릭 또는
+ * h 키를 감지해 토글한다. */
+body.distraction-free .hud-progress,
+body.distraction-free .log-button,
+body.distraction-free .llm-suggestions,
+body.distraction-free .event-toast,
+body.distraction-free .affinity-vignette,
+body.distraction-free text-input.llm-input {
+	visibility: hidden !important;
+}
+
+/* 게임 진행 중이 아닐 때는(메인 메뉴/세이브/로드 화면 등) 커스텀 UI가 잔존하지 않도록 제거.
+ * `body.game-active` 는 script.js의 LLMChat 진입 시점에 부착, End/Quit에서 제거한다. */
+body:not(.game-active) .hud-progress,
+body:not(.game-active) .log-button,
+body:not(.game-active) .llm-suggestions,
+body:not(.game-active) .event-toast,
+body:not(.game-active) .affinity-vignette {
+	display: none !important;
 }
 
 /**
@@ -118,9 +155,42 @@ body {
 	opacity: 0;
 }
 
-/* 배경 레이어 부드러운 전환 (씬 전환 페이드) */
+/**
+ * ===========================
+ * 이세라 첫등장 CG — show image sera_first (전체 화면 오버레이)
+ * ===========================
+**/
+
+/* show image로 생성되는 <img> 요소를 화면 전체 크기로 확장 */
+[data-screen="game"] [data-image="sera_first"] {
+	position: absolute !important;
+	top: 0 !important;
+	left: 0 !important;
+	right: 0 !important;
+	bottom: 0 !important;
+	width: 100% !important;
+	height: 100% !important;
+	max-width: none !important;
+	max-height: none !important;
+	transform: none !important;
+	object-fit: contain;
+	z-index: 5;
+}
+
+/* CG 표시 중 letterbox(빈 여백) 영역에 검은 배경 */
+[data-screen="game"] [data-content="visuals"]:has([data-image="sera_first"]) {
+	background: #000;
+}
+
+/* 배경 레이어 — Monogatari show scene 및 커스텀 setSceneBackground 공통 기반.
+ * background-size/position을 CSS로 선언해두면 Monogatari가 backgroundImage만 변경해도
+ * cover/center가 유지된다. transition은 setSceneBackground의 opacity fade와 충돌하지 않도록
+ * background 1s ease를 제거하고 opacity만 남긴다. */
 [data-screen="game"] [data-ui="background"] {
-	transition: opacity 1s ease, background 1s ease;
+	background-size: cover;
+	background-position: center;
+	background-repeat: no-repeat;
+	transition: opacity 1s ease;
 }
 
 /**
@@ -1062,8 +1132,8 @@ input[type=range]::-ms-fill-upper {
 .main-menu-overlay--visible { opacity: 1; }
 .main-menu-overlay--leaving { opacity: 0; }
 .main-menu-overlay__panel {
-	min-width: 320px;
-	max-width: 460px;
+	width: min(520px, calc(100vw - 2rem));
+	box-sizing: border-box;
 	padding: 32px 36px;
 	background: rgba(28, 22, 40, 0.92);
 	border: 1px solid rgba(180, 160, 220, 0.35);
@@ -1072,32 +1142,46 @@ input[type=range]::-ms-fill-upper {
 	color: #f3eef9;
 	text-align: center;
 	font-family: inherit;
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
 }
 .main-menu-overlay__title {
 	font-size: 1.5rem;
 	font-weight: 700;
 	letter-spacing: 0.02em;
 	margin-bottom: 6px;
+	text-align: center;
 }
 .main-menu-overlay__sub {
 	font-size: 0.9rem;
 	opacity: 0.7;
 	letter-spacing: 0.05em;
 	margin-bottom: 24px;
+	text-align: center;
 }
 .main-menu-overlay__buttons {
 	display: flex;
 	flex-direction: column;
+	align-items: stretch;
+	width: 100%;
 	gap: 12px;
 }
 .main-menu-btn {
+	display: block;
+	width: 100%;
+	box-sizing: border-box;
 	padding: 12px 18px;
+	margin: 0;
 	border-radius: 10px;
 	border: 1px solid rgba(180, 160, 220, 0.45);
 	background: rgba(60, 48, 88, 0.7);
 	color: #f3eef9;
 	font-size: 1rem;
 	font-weight: 600;
+	line-height: 1.3;
+	white-space: nowrap;
+	text-align: center;
 	cursor: pointer;
 	transition: background 180ms ease, transform 120ms ease, border-color 180ms ease;
 }
