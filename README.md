@@ -25,3 +25,5 @@ Monogatari 엔진 기반 미연시 프론트엔드.
 *   `scenes/`
     *   스토리 배경으로 사용되는 이미지를 저장.
     *   Usage: 스크립트 내에서 `"show scene [배경명]"` 명령어로 배경 화면 전환.
+
+Claude PR review test
