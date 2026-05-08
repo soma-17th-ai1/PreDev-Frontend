@@ -25,23 +25,8 @@
 const { $_ready, $_ } = Monogatari;
 
 // 1. Outside the $_ready function:
-
-const MainMenu = monogatari.component ('main-menu');
-
-class SomaMainMenu extends MainMenu {
-	render () {
-		return `
-			<div data-ui="main-brand" aria-hidden="true">
-				<span data-ui="main-kicker">SOMA</span>
-				<strong data-ui="main-title">\uBBF8\uC5F0\uC2DC \uD14C\uC2A4\uD2B8</strong>
-			</div>
-			${super.render ()}
-		`;
-	}
-}
-
-SomaMainMenu.tag = 'main-menu';
-monogatari.registerComponent (SomaMainMenu);
+// SomaMainMenu (custom main-menu component) is defined and registered in script.js,
+// alongside the helpers it depends on (fetchSessionMe / loadFromSlot / _confirmReset etc.).
 
 if (window.location.protocol !== 'file:') {
 	const manifestLink = document.createElement ('link');

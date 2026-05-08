@@ -161,7 +161,8 @@ body:not(.game-active) .affinity-vignette {
  * ===========================
 **/
 
-/* show image로 생성되는 <img> 요소를 화면 전체 크기로 확장 */
+/* show image로 생성되는 <img> 요소를 화면 전체 크기로 확장.
+ * object-fit: cover — 이미지 비율은 보존하면서 컨테이너를 가득 채우고, 화면 비율과 다른 부분은 crop. */
 [data-screen="game"] [data-image="sera_first"] {
 	position: absolute !important;
 	top: 0 !important;
@@ -173,13 +174,9 @@ body:not(.game-active) .affinity-vignette {
 	max-width: none !important;
 	max-height: none !important;
 	transform: none !important;
-	object-fit: contain;
+	object-fit: cover;
+	object-position: center;
 	z-index: 5;
-}
-
-/* CG 표시 중 letterbox(빈 여백) 영역에 검은 배경 */
-[data-screen="game"] [data-content="visuals"]:has([data-image="sera_first"]) {
-	background: #000;
 }
 
 /* 배경 레이어 — Monogatari show scene 및 커스텀 setSceneBackground 공통 기반.
