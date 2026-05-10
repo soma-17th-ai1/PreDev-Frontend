@@ -1,7 +1,3 @@
-// 추천 답변 표시
-// 씬별 대화 개수 살짝 수정
-// is_ended reponse기반으로 변경
-// 이벤트 씬 추가
 
 monogatari.action ('message').messages ({
 	'Help': {
@@ -63,9 +59,9 @@ monogatari.assets ('scenes', {
 	'fade_black':      'fade_black.svg',
 	'bedroom_dawn':    'bedroom_dawn.svg',
 	'apartment_door':  'apartment_door.svg',
-	'train_interior':  'train_interior.svg',
-	'posttower_lobby': 'entrance.png',
-	'elevator_panel':  'entrance.png',
+	'train_interior':  'metro.png',
+	'posttower_lobby': 'center_1floor.png',
+	'elevator_panel':  'elevator_panel.svg',
 	'center_hall':     'entrance.png',
 	's1_room':         'entrance.png',
 
@@ -505,16 +501,10 @@ function _gotoNextScene () {
 		const isEnding = /^SCENE_ENDING_/.test (next);
 		monogatari.storage ({
 			game: Object.assign ({}, game, {
-				current_scene_id: next,
-				is_ended: !!game.is_ended || isEnding
+				current_scene_id: next
 			})
 		});
 		if (isEnding) {
-			// 엔딩 진입 — 배경을 엔딩 placeholder 로 스왑하고 LLMEnd 로.
-			const bgKey = SCENE_BG_KEY[next];
-			if (bgKey) {
-				try { monogatari.run ('show scene ' + bgKey + ' with fadeIn', false); } catch (e) {}
-			}
 			monogatari.state ({ label: 'LLMEnd', step: -1 });
 			return true;
 		}
@@ -536,28 +526,6 @@ async function fetchEndingContent () {
 		const json = await res.json ();
 		return json?.data || null;
 	} catch (e) { return null; }
-}
-
-const ENDING_IMAGE_MAP = {
-	ENDING_INSTANT_BAD:        null,
-	ENDING_BAD:                null,
-	ENDING_NORMAL_NO_CONTACT:  null,
-	ENDING_NORMAL_CONTACT:     null,
-	ENDING_HAPPY:              null,
-	ENDING_MARRIAGE:           null
-};
-let _endingImageEl = null;
-async function showEndingImageIfAvailable (endingId) {
-	const url = ENDING_IMAGE_MAP[endingId];
-	if (!url) return;
-	const visuals = document.querySelector ('[data-screen="game"] [data-content="visuals"]') || document.body;
-	if (_endingImageEl) _endingImageEl.remove ();
-	_endingImageEl = document.createElement ('div');
-	_endingImageEl.className = 'cg-overlay ending-cg';
-	_endingImageEl.style.backgroundImage = `url("${encodeURI (url)}")`;
-	visuals.appendChild (_endingImageEl);
-	void _endingImageEl.offsetWidth;
-	_endingImageEl.classList.add ('cg-overlay--visible');
 }
 
 let _sessionBootstrapped = false;
@@ -1414,8 +1382,15 @@ monogatari.script ({
 		'천사의 날개 같은 흰 머리, 사람을 홀리는 듯한 파란 눈, 가녀린 속눈썹, 보호본능을 자극하는 가녀린 체구. 그야말로 나의 이상향과 같은 존재였다.',
 		'그녀의 노트북 화면엔 검은 터미널 위로 GDB 프롬프트가 깜빡이고, 옆에는 다 식어버린 아메리카노가 놓여 있었다.',
 		'hide image sera_first with fadeOut',
+		'jump SCENE_FIRST_MEET'
+	],
 
-		// === 씬 7: 첫 인사 (이세라 스프라이트 등장; 평온 → 행복 → 평온) ===
+	// === 소마 일정 씬 (§1.4.2 SceneId) ===
+	// 각 라벨 구조: [<프롤로그>, 'jump LLMChat', <에필로그>, _gotoNextScene].
+	// LLMChat 가 scene_transition 을 받으면 _TransitionDispatch → 이 라벨의 'jump LLMChat' 다음 step (에필로그) 으로 복귀.
+	// 모든 씬에서 히로인이 출력되도록 'show character y …' 을 프롤로그·에필로그 시작에 명시.
+
+	'SCENE_FIRST_MEET': [
 		'show character y calm with fadeIn',
 		'p 그때 워크숍 때 봤던 사람이잖아…? 다시 봐도 정말 눈에 띄네.',
 		'p 그때 잠깐 이야기 듣다 보니 관심사가 나랑 비슷한 것 같았어. 지금이라도 한 번 말을 걸어봐야겠다…!',
@@ -1445,17 +1420,6 @@ monogatari.script ({
 		'y 잘 부탁드려요, {{player.name}}씨.',
 		'p 반갑습니다…!',
 		'p (어색한 첫 인사는 끝났다. 이제 뭐라고 말을 꺼내지…)',
-		// SCENE_FIRST_MEET 라벨로 위임 — 디스패처가 prev 추적할 수 있도록 라벨 단위로 진입.
-		'jump SCENE_FIRST_MEET'
-	],
-
-	// === 소마 일정 씬 (§1.4.2 SceneId) ===
-	// 각 라벨 구조: [<프롤로그>, 'jump LLMChat', <에필로그>, _gotoNextScene].
-	// LLMChat 가 scene_transition 을 받으면 _TransitionDispatch → 이 라벨의 'jump LLMChat' 다음 step (에필로그) 으로 복귀.
-	// 모든 씬에서 히로인이 출력되도록 'show character y …' 을 프롤로그·에필로그 시작에 명시.
-
-	'SCENE_FIRST_MEET': [
-		// 프롤로그는 NewGame 에서 이미 처리되므로 곧장 채팅으로.
 		'jump LLMChat',
 		// === 에필로그 ===
 		'show character y happy',
@@ -1745,6 +1709,7 @@ monogatari.script ({
 						break;
 					case 'scene_transition':
 						nextSceneId = payload?.next_scene_id || null;
+						console.log ('[SSE scene_transition]', JSON.stringify (payload));
 						break;
 					case 'error':
 						if (!textBuffer) {
@@ -1946,7 +1911,6 @@ monogatari.script ({
 			// current_scene_id 자체는 _gotoNextScene 가 다음 라벨로 점프하기 직전에 갱신.
 			const prevGameForLLM = this.storage ('game') || {};
 			const prevSceneForTransition = nextSceneId ? (prevGameForLLM.current_scene_id || '') : '';
-			const isEnding = !!(nextSceneId && /^SCENE_ENDING_/.test (nextSceneId));
 			this.storage ({
 				llm: {
 					prompt: this.storage ('llm').prompt,
@@ -1957,12 +1921,6 @@ monogatari.script ({
 					prev_scene_id: prevSceneForTransition
 				}
 			});
-			if (isEnding) {
-				// is_ended 는 GameState 의 단일 진실 — 엔딩 도달 여부는 이걸로만 판정.
-				this.storage ({
-					game: Object.assign ({}, prevGameForLLM, { is_ended: true })
-				});
-			}
 
 			return true;
 		},
@@ -1986,18 +1944,12 @@ monogatari.script ({
 			clearSuggestions ();
 			hideThinkingDots ();
 			hideHUD ();
-			// _gotoNextScene 가 이미 game.current_scene_id 와 배경을 엔딩 씬으로 갱신했지만,
-			// 직접 LLMEnd 로 진입하는 (드문) 경로 (resume 등) 에 대비해 한 번 더 보정.
+
 			const game = this.storage ('game') || {};
 			const sceneId = game.current_scene_id || '';
-			if (/^SCENE_ENDING_/.test (sceneId)) {
-				const bgKey = SCENE_BG_KEY[sceneId];
-				if (bgKey) {
-					try { await monogatari.run ('show scene ' + bgKey + ' with fadeIn', false); } catch (e) {}
-				}
-				if (!game.is_ended) {
-					this.storage ({ game: Object.assign ({}, game, { is_ended: true }) });
-				}
+			const bgKey = SCENE_BG_KEY[sceneId];
+			if (bgKey) {
+				try { await monogatari.run ('show scene ' + bgKey + ' with fadeIn', false); } catch (e) {}
 			}
 			const ending = await fetchEndingContent ();
 			if (!ending) {
@@ -2005,7 +1957,6 @@ monogatari.script ({
 				await typewriteAndAwait ('다음에 또 이야기해요, ' + ((this.storage ('player') || {}).name || '플레이어') + '씨.', { who: '이세라' });
 				return true;
 			}
-			await showEndingImageIfAvailable (ending.ending_id);
 			if (ending.title) {
 				await typewriteAndAwait (`— ${ending.title} —`, { who: '' });
 			}
