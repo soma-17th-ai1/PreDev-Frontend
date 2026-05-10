@@ -1,47 +1,13 @@
-'use strict';
-/* global Monogatari */
-/* global monogatari */
+import { Monogatari, monogatari } from './engine.js';
 
-/**
- * =============================================================================
- * 이 파일은 모든 커스텀 JavaScript 코드를 넣는 곳입니다.
- * 수행하려는 작업에 따라 이 파일에는 코드를 추가할 수 있는
- * 서로 다른 세 위치가 있습니다.
- *
- * 1. `$_ready` 함수 밖: 이 시점에서는 페이지가 완전히 로드되지 않았을 수 있지만,
- *    Monogatari에 새 액션, 컴포넌트, 레이블, 캐릭터 등을 등록할 수 있습니다.
- *
- * 2. `$_ready` 함수 내부: 이 시점에서는 페이지가 로드되어 HTML 요소와
- *    상호작용할 수 있습니다.
- *
- * 3. `init` 함수 내부: 이 시점에서는 Monogatari가 초기화되어 내부 동작의
- *    이벤트 리스너가 등록되고, (설정되어 있으면) 자산이 프리로드되어
- *    게임을 실행할 준비가 되어 있습니다.
- *
- * 항상 `$_ready` 함수를 이 파일의 가장 마지막에 두세요.
- * =============================================================================
- **/
+// side-effect imports — 모듈 평가 시점에 Monogatari 등록·리스너·훅이 설치됨.
+import './options.js';
+import './storage.js';
+import './menu.js';
+import './lifecycle.js';
+import './script.js';
 
-const { $_ready, $_ } = Monogatari;
-
-// 1. Outside the $_ready function:
-
-const MainMenu = monogatari.component ('main-menu');
-
-class SomaMainMenu extends MainMenu {
-	render () {
-		return `
-			<div data-ui="main-brand" aria-hidden="true">
-				<span data-ui="main-kicker">SOMA</span>
-				<strong data-ui="main-title">\uBBF8\uC5F0\uC2DC \uD14C\uC2A4\uD2B8</strong>
-			</div>
-			${super.render ()}
-		`;
-	}
-}
-
-SomaMainMenu.tag = 'main-menu';
-monogatari.registerComponent (SomaMainMenu);
+const { $_ready } = Monogatari;
 
 if (window.location.protocol !== 'file:') {
 	const manifestLink = document.createElement ('link');
@@ -51,10 +17,7 @@ if (window.location.protocol !== 'file:') {
 }
 
 $_ready (() => {
-	// 2. Inside the $_ready function:
-
 	monogatari.init ('#monogatari').then (() => {
-		// 3. Inside the init function:
-
+		// Monogatari 초기화 완료.
 	});
 });
