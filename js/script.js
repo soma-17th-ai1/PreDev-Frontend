@@ -103,6 +103,7 @@ monogatari.translation ('English', {
 
 monogatari.script ({
 	'Start': [
+		function () { setGameActive (true); return true; },
 		// 인트로 직전 — blank_white SVG 로 즉시 흰 배경.
 		'show scene blank_white',
 		// 인트로 로고 오버레이.
