@@ -318,8 +318,8 @@ function renderSuggestionsStrip (suggestions) {
 	const refresh = document.createElement ('button');
 	refresh.type = 'button';
 	refresh.className = 'llm-suggestions__refresh';
-	refresh.title = 'Refresh suggestions';
-	refresh.setAttribute ('aria-label', 'Refresh suggestions');
+	refresh.title = '추천 다시 받기';
+	refresh.setAttribute ('aria-label', '추천 다시 받기');
 	refresh.textContent = 'R';
 	refresh.addEventListener ('click', (ev) => {
 		ev.preventDefault ();
@@ -341,13 +341,13 @@ function clearSuggestions () {
 }
 
 const EVENT_LABELS = {
-	EVENT_LIKE_P30:  { sign: '+', text: 'Affinity 30' },
-	EVENT_LIKE_P50:  { sign: '+', text: 'Affinity 50' },
-	EVENT_LIKE_P70:  { sign: '+', text: 'Affinity 70' },
-	EVENT_LIKE_P100: { sign: '+', text: 'Affinity 100' },
-	EVENT_DISLIKE_M30: { sign: 'down', text: 'Affinity -30' },
-	EVENT_DISLIKE_M50: { sign: 'down', text: 'Affinity -50' },
-	EVENT_DISLIKE_M70: { sign: 'down', text: 'Affinity -70' }
+	EVENT_LIKE_P30:  { sign: '+', text: '호감도 +30 도달' },
+	EVENT_LIKE_P50:  { sign: '+', text: '호감도 +50 도달' },
+	EVENT_LIKE_P70:  { sign: '+', text: '호감도 +70 도달' },
+	EVENT_LIKE_P100: { sign: '+', text: '호감도 +100 도달' },
+	EVENT_DISLIKE_M30: { sign: '−', text: '호감도 -30 도달' },
+	EVENT_DISLIKE_M50: { sign: '−', text: '호감도 -50 도달' },
+	EVENT_DISLIKE_M70: { sign: '−', text: '호감도 -70 도달' }
 };
 function showEventToast (eventId) {
 	const meta = EVENT_LABELS[eventId];
@@ -573,19 +573,19 @@ function _confirmModal ({ title, body, ok = 'OK', cancel = 'Cancel' }) {
 
 function _confirmReset () {
 	return _confirmModal ({
-		title:  'Reset existing session?',
-		body:   'This will clear the current session and local save slot. Start over?',
-		ok:     'Start Over',
-		cancel: 'Cancel'
+		title:  '기존 진행을 초기화할까요?',
+		body:   '현재 세션과 저장된 진행 데이터가 모두 삭제됩니다. 새로 시작하시겠어요?',
+		ok:     '새로 시작',
+		cancel: '취소'
 	});
 }
 
 function _confirmQuit () {
 	return _confirmModal ({
-		title:  'Quit to main menu?',
-		body:   'Your progress will be saved automatically. You can resume from the main menu.',
-		ok:     'Quit',
-		cancel: 'Cancel'
+		title:  '메인 메뉴로 돌아갈까요?',
+		body:   '현재 진행 상황은 자동으로 저장돼요. 메인 메뉴에서 다시 이어 할 수 있어요.',
+		ok:     '나가기',
+		cancel: '취소'
 	});
 }
 
@@ -739,7 +739,7 @@ async function handleResume () {
 				console.debug ('[resume] BE-only detected — resetting BE session');
 				try { await postSessionsCreate (true); } catch (e) { console.warn ('[resume] BE reset failed:', e); }
 			}
-			alert ('No resumable session was found.\n저장된 게임이 없습니다. 새로 시작해주세요.');
+			alert ('저장된 게임이 없습니다. 새로 시작해주세요.');
 			_refreshSomaMainMenu ();
 			return;
 		}
@@ -788,7 +788,7 @@ async function handleResume () {
 			await monogatari.loadFromSlot (SAVE_SLOT_KEY);
 		} catch (e) {
 			console.error ('[resume] loadFromSlot failed:', e);
-			alert ('Could not load the saved game.\n' + (e?.message || e));
+			alert ('저장된 게임을 불러오지 못했어요.\n' + (e?.message || e));
 			return;
 		}
 		console.debug (
@@ -893,13 +893,13 @@ class SomaMainMenu extends MainMenu {
 		return `
 			<div data-ui="main-brand" aria-hidden="true">
 				<span data-ui="main-kicker">SOMA x First Love</span>
-                <strong data-ui="main-title">Kernel Side Story</strong>
+                <strong data-ui="main-title">커널을 좋아하는 옆자리의 그녀</strong>
 			</div>
 			<div data-content="wrapper">
-                <button type="button" data-action="soma-resume" data-soma-button="resume" hidden>Resume</button>
-                <button type="button" data-action="soma-new"    data-soma-button="new">New Game</button>
-                <button type="button" data-action="open-screen" data-open="settings">Settings</button>
-                <button type="button" data-action="open-screen" data-open="help">Help</button>
+                <button type="button" data-action="soma-resume" data-soma-button="resume" hidden>이어 하기</button>
+                <button type="button" data-action="soma-new"    data-soma-button="new">새 게임</button>
+                <button type="button" data-action="open-screen" data-open="settings">설정</button>
+                <button type="button" data-action="open-screen" data-open="help">도움말</button>
 			</div>
 		`;
 	}
@@ -917,7 +917,7 @@ class SomaMainMenu extends MainMenu {
 			const resumeBtn = this.querySelector ('[data-soma-button="resume"]');
 			const newBtn    = this.querySelector ('[data-soma-button="new"]');
 			if (resumeBtn) resumeBtn.hidden = !canResume;
-			if (newBtn)    newBtn.textContent = canResume ? 'New Game (reset previous)' : 'New Game';
+			if (newBtn)    newBtn.textContent = canResume ? '새 게임 (이전 진행 삭제)' : '새 게임';
 		} catch (e) {  }
 	}
 }
@@ -931,7 +931,7 @@ class SomaSettingsScreen extends SettingsScreen {
 		const baseHtml = super.render ();
 		const quitHtml = `
 			<div class="row row--center padded settings-quit-row">
-				<button type="button" data-action="soma-quit" class="settings-quit-btn">Quit to main menu</button>
+				<button type="button" data-action="soma-quit" class="settings-quit-btn">메인 메뉴로</button>
 			</div>
 		`;
 		return baseHtml + quitHtml;
@@ -1078,7 +1078,7 @@ let _logViewerEl = null;
 function _renderUnifiedLog (listEl, entries) {
 	listEl.innerHTML = '';
 	if (!entries.length) {
-        listEl.innerHTML = '<div class="log-viewer__empty">No dialog yet.</div>';
+        listEl.innerHTML = '<div class="log-viewer__empty">아직 대화가 없어요.</div>';
 		return;
 	}
 	const fragment = document.createDocumentFragment ();
@@ -1090,7 +1090,7 @@ function _renderUnifiedLog (listEl, entries) {
 		row.className = `log-viewer__row log-viewer__row--${variant}`;
 		const label = entry.named && entry.name
 			? entry.name
-			: (entry.id === 'centered' ? '' : 'Narrator');
+			: (entry.id === 'centered' ? '' : '내레이션');
 		const colorStyle = entry.color ? ` style="color:${entry.color}"` : '';
 		row.innerHTML = `
 			<div class="log-viewer__role"${colorStyle}>${escapeDialogText (label)}</div>
@@ -1106,10 +1106,10 @@ async function openLogViewer () {
 	const overlay = document.createElement ('div');
 	overlay.className = 'log-viewer';
 	overlay.innerHTML = `
-        <div class="log-viewer__panel" role="dialog" aria-label="Dialog log">
+        <div class="log-viewer__panel" role="dialog" aria-label="대화 기록">
 			<div class="log-viewer__header">
-                <span class="log-viewer__title">Dialog log</span>
-                <button type="button" class="log-viewer__close" aria-label="Close">x</button>
+                <span class="log-viewer__title">대화 기록</span>
+                <button type="button" class="log-viewer__close" aria-label="닫기">×</button>
 			</div>
 			<div class="log-viewer__list" tabindex="0"></div>
 		</div>
@@ -1143,9 +1143,9 @@ function ensureLogButton () {
 	const btn = document.createElement ('button');
 	btn.type = 'button';
 	btn.className = 'log-button';
-	btn.title = 'Dialog log';
-	btn.setAttribute ('aria-label', 'Dialog log');
-	btn.textContent = 'Log';
+	btn.title = '대화 기록';
+	btn.setAttribute ('aria-label', '대화 기록');
+	btn.textContent = '📜로그';
 	btn.addEventListener ('click', (e) => {
 		e.preventDefault ();
 		e.stopPropagation ();
@@ -1402,21 +1402,24 @@ monogatari.script ({
 			ensureLogButton ();
 
 			if (boot.mode === 'resume' || boot.mode === 'loaded-slot') {
-				// 채팅 도중 재개 — BE recent_messages 로 dialog-log DOM 만 복원한다.
-				// (storage 누적은 더 이상 하지 않음. UX 상 마지막 ASSISTANT 메시지는 textbox 에도 표시.)
+				// 채팅 도중 재개 — BE recent_messages 로 dialog-log(로그 창) DOM 만 복원한다.
+				// 대화창(text-box) 은 비워둔다 — 마지막 응답은 로그 창에서만 확인하도록.
 				const recent = Array.isArray (boot.recent_messages) ? boot.recent_messages : [];
 				console.debug ('[resume] restoring dialog log from BE recent_messages:', recent.length, 'entries');
 				clearDialogLogDom ();
 				if (recent.length > 0) {
 					pushRecentMessagesToDialogLog (recent, playerName);
-					const lastAsst = [...recent].reverse ().find (m => m && m.role === 'ASSISTANT');
-					if (lastAsst?.content) {
-						const sayEl = document.querySelector ('[data-ui="say"]');
-						const whoEl = document.querySelector ('[data-ui="who"]');
-						if (whoEl) whoEl.textContent = '이세라';
-						if (sayEl) sayEl.innerHTML = escapeDialogText (lastAsst.content);
-					}
 				}
+				// 대화창은 비워둔다.
+				const sayEl = document.querySelector ('[data-ui="say"]');
+				const whoEl = document.querySelector ('[data-ui="who"]');
+				if (sayEl) sayEl.innerHTML = '';
+				if (whoEl) whoEl.textContent = '';
+				// 저장된 마지막 감정에 맞는 스프라이트 복원.
+				// (monogatari state.characters 는 NewGame 의 'show character y calm' 만 추적하고
+				//  채팅 중 updateSeraSprite() 의 DOM 변경은 추적하지 않으므로 수동 복원이 필요.)
+				const llmStorage = this.storage ('llm') || {};
+				if (llmStorage.emotion) updateSeraSprite (llmStorage.emotion);
 				// 다음 LLMChat 진입(루프) 시 이 블록을 다시 타지 않도록 모드 전환.
 				this.storage ({ boot: Object.assign ({}, boot, { mode: boot.mode + '-played' }) });
 				// 배경 복원은 monogatari Scene action onLoad 가 자동 처리.

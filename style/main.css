@@ -50,12 +50,14 @@ body.distraction-free text-input.llm-input {
 }
 
 /* 게임 진행 중이 아닐 때는(메인 메뉴/세이브/로드 화면 등) 커스텀 UI가 잔존하지 않도록 제거.
- * `body.game-active` 는 script.js의 LLMChat 진입 시점에 부착, End/Quit에서 제거한다. */
+ * `body.game-active` 는 script.js의 LLMChat 진입 시점에 부착, End/Quit에서 제거한다.
+ * settings-quit-row 도 함께 숨겨서, 메인 메뉴에서 설정으로 진입했을 땐 종료 버튼이 노출되지 않도록 한다. */
 body:not(.game-active) .hud-progress,
 body:not(.game-active) .log-button,
 body:not(.game-active) .llm-suggestions,
 body:not(.game-active) .event-toast,
-body:not(.game-active) .affinity-vignette {
+body:not(.game-active) .affinity-vignette,
+body:not(.game-active) .settings-quit-row {
 	display: none !important;
 }
 
@@ -536,10 +538,11 @@ main-screen::after {
 	max-width: 100%;
 	color: #ffffff;
 	font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-	font-size: clamp(3rem, 7.2vw, 6.8rem);
+	font-size: clamp(2.4rem, 5.6vw, 5rem);
 	font-weight: 900;
-	line-height: 1.05;
-	white-space: nowrap;
+	line-height: 1.15;
+	white-space: normal;
+	word-break: keep-all;
 	text-shadow:
 		0 0.08em 0 rgba(242, 106, 154, 0.82),
 		0 0.16em 1.7rem rgba(126, 52, 84, 0.24);
