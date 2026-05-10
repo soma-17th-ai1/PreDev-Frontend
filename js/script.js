@@ -1,3 +1,7 @@
+// 추천 답변 표시
+// 씬별 대화 개수 살짝 수정
+// is_ended reponse기반으로 변경
+// 이벤트 씬 추가
 
 monogatari.action ('message').messages ({
 	'Help': {
@@ -63,7 +67,22 @@ monogatari.assets ('scenes', {
 	'posttower_lobby': 'entrance.png',
 	'elevator_panel':  'entrance.png',
 	'center_hall':     'entrance.png',
-	's1_room':         'entrance.png'
+	's1_room':         'entrance.png',
+
+	// === SceneId 기반 플레이스홀더 배경 (§1.4.2) ===
+	// 실제 배경 에셋이 준비되기 전까지 씬 키가 그대로 보이는 SVG 로 대체.
+	'scene_project_plan_evaluation': 'scene_project_plan_evaluation.svg',
+	'scene_launch_ceremony':         'scene_launch_ceremony.svg',
+	'scene_mid_evaluation':          'scene_mid_evaluation.svg',
+	'scene_deep_dev':                'scene_deep_dev.svg',
+	'scene_final_evaluation':        'scene_final_evaluation.svg',
+	'scene_graduation_busan':        'scene_graduation_busan.svg',
+	'scene_ending_instant_bad':       'scene_ending_instant_bad.svg',
+	'scene_ending_bad':               'scene_ending_bad.svg',
+	'scene_ending_normal_no_contact': 'scene_ending_normal_no_contact.svg',
+	'scene_ending_normal_contact':    'scene_ending_normal_contact.svg',
+	'scene_ending_happy':             'scene_ending_happy.svg',
+	'scene_ending_marriage':          'scene_ending_marriage.svg'
 });
 
 monogatari.characters ({
@@ -101,9 +120,8 @@ const SAVE_SLOT_PREFIX = 'SaveLabel';
 const SAVE_SLOT_ID = 1;
 const SAVE_SLOT_KEY = 'Save_1';
 const SAVE_SLOT_NAME = 'In Progress';
-// 자동 저장 트리거 라벨 — Start/NewGame 빌드업 + LLMChat 채팅 모두 포함.
-// LLMChat 을 빠뜨리면 채팅 도중 quit 시 마지막 저장이 빌드업 시점에 머물러 dialog-log 유실 등 발생.
-const SCRIPT_AUTOSAVE_LABELS = new Set (['Start', 'NewGame', 'LLMChat']);
+// 자동 저장은 playing=true 인 동안 모든 라벨 (빌드업·씬 프롤로그/에필로그·LLMChat 포함) 에서 발생.
+// 이전에는 라벨 화이트리스트로 관리했으나 씬 라벨이 늘어나면서 제외되는 라벨이 많아져 폐기.
 const CHAT_RESUME_LABELS = new Set (['LLMChat']);
 const RESUME_SLOT_SAVE_DELAY_MS = 180;
 
@@ -362,15 +380,6 @@ function showEventToast (eventId) {
 	setTimeout (() => { if (toast.parentNode) toast.parentNode.removeChild (toast); }, 2500);
 }
 
-async function fetchSceneIntroDialogues () {
-	try {
-		const res = await fetch (`${API_BASE}/scenes/current`, { credentials: 'include' });
-		if (!res.ok) return null;
-		const json = await res.json ();
-		return json?.data || null;
-	} catch (e) { return null; }
-}
-
 function typewriteAndAwait (text, opts = {}) {
 	const sayEl = document.querySelector ('[data-ui="say"]');
 	const whoEl = document.querySelector ('[data-ui="who"]');
@@ -428,34 +437,96 @@ function typewriteAndAwait (text, opts = {}) {
 	});
 }
 
-const _playedSceneIntros = new Set ();
-async function playSceneIntroIfPending (storageRef) {
-	const llm = storageRef.storage ('llm') || {};
-	const game = storageRef.storage ('game') || {};
-	const target = llm.next_scene_id;
-	if (!target || /^SCENE_ENDING_/.test (target)) return;
-	if (target === game.current_scene_id || _playedSceneIntros.has (target)) {
-		storageRef.storage ({ llm: Object.assign ({}, llm, { next_scene_id: '' }) });
-		return;
+// ============================================================================
+// 씬 전환 — FE 자체 정의 (§1.4.2 SceneId)
+// ----------------------------------------------------------------------------
+// scene_transition 이벤트가 도착하면, FE 가 이 표를 보고
+//   1) 이전 씬 에필로그 → 2) 배경 페이드 스왑 → 3) 다음 씬 프롤로그
+// 순서로 monogatari script 의 일부처럼 자연스럽게 재생한다.
+// 대사는 typewriteAndAwait 가 처리하므로 기존 빌드업 대사와 동일한 톤.
+//
+// 일반 씬 — 'p' 는 플레이어, 'y' 는 이세라(스프라이트 갱신).
+// 엔딩 씬 — 프롤로그/에필로그 없이 배경만 스왑하고 LLMEnd 가 narrative 를 찍는다.
+// ============================================================================
+
+const SCENE_BG_KEY = {
+	SCENE_INTRO:                     'fade_black',
+	SCENE_FIRST_MEET:                's1_room',
+	SCENE_PROJECT_PLAN_EVALUATION:   'scene_project_plan_evaluation',
+	SCENE_LAUNCH_CEREMONY:           'scene_launch_ceremony',
+	SCENE_MID_EVALUATION:            'scene_mid_evaluation',
+	SCENE_DEEP_DEV:                  'scene_deep_dev',
+	SCENE_FINAL_EVALUATION:          'scene_final_evaluation',
+	SCENE_GRADUATION_BUSAN:          'scene_graduation_busan',
+	SCENE_ENDING_INSTANT_BAD:        'scene_ending_instant_bad',
+	SCENE_ENDING_BAD:                'scene_ending_bad',
+	SCENE_ENDING_NORMAL_NO_CONTACT:  'scene_ending_normal_no_contact',
+	SCENE_ENDING_NORMAL_CONTACT:     'scene_ending_normal_contact',
+	SCENE_ENDING_HAPPY:              'scene_ending_happy',
+	SCENE_ENDING_MARRIAGE:           'scene_ending_marriage'
+};
+
+// ---------------------------------------------------------------------------
+// 씬 전환은 monogatari.script 안에서 처리한다 (사용자 피드백 #3):
+//   각 씬 라벨 = [ <프롤로그 라인들>, 'jump LLMChat', <에필로그 라인들>, _gotoNextScene ]
+// LLMChat 의 Conditional 이 scene_transition 을 감지하면 _TransitionDispatch 라벨로
+// 점프하고, 거기서 prev 씬의 'jump LLMChat' 인덱스 다음 step (= 에필로그 시작) 으로
+// state 를 옮긴다. 에필로그 끝의 _gotoNextScene 가 다음 씬 라벨로 분기한다.
+//
+// 디스패처가 현재 씬 라벨의 'jump LLMChat' 위치를 찾는다.
+// monogatari.label(name) 이 우선이고, 실패 시 monogatari.script() 인덱스를 사용.
+function _findJumpLLMChatStep (label) {
+	if (!label) return -1;
+	let arr = null;
+	try { if (typeof monogatari.label === 'function') arr = monogatari.label (label); } catch (e) {}
+	if (!Array.isArray (arr)) {
+		try {
+			const all = typeof monogatari.script === 'function' ? monogatari.script () : null;
+			if (all && Array.isArray (all[label])) arr = all[label];
+		} catch (e) {}
 	}
-	const meta = await fetchSceneIntroDialogues ();
-	if (!meta || !Array.isArray (meta.intro_dialogues) || meta.intro_dialogues.length === 0) {
-		storageRef.storage ({ llm: Object.assign ({}, llm, { next_scene_id: '' }) });
-		return;
+	if (!Array.isArray (arr)) return -1;
+	for (let i = 0; i < arr.length; i++) {
+		if (arr[i] === 'jump LLMChat') return i;
 	}
-	_playedSceneIntros.add (target);
-	storageRef.storage ({
-		game: Object.assign ({}, game, { current_scene_id: target }),
-		llm: Object.assign ({}, llm, { next_scene_id: '' })
+	return -1;
+}
+
+// 씬 라벨 마지막에 호출되는 dispatcher — llm.next_scene_id 를 보고 다음 씬 / 엔딩 / 폴백 으로 분기.
+// engine 이 Function 반환 후 step++ 하므로 step:-1 로 두면 다음 라벨의 [0] 이 실행된다.
+function _gotoNextScene () {
+	const llm = monogatari.storage ('llm') || {};
+	const game = monogatari.storage ('game') || {};
+	const next = llm.next_scene_id || '';
+	monogatari.storage ({
+		llm: Object.assign ({}, llm, { next_scene_id: '', prev_scene_id: '' })
 	});
-	for (const d of meta.intro_dialogues) {
-		if (d.type === 'character') {
-			if (d.emotion) updateSeraSprite (d.emotion);
-			await typewriteAndAwait (d.text || '', { who: d.name || 'Sera' });
-		} else {
-			await typewriteAndAwait (d.text || '', { who: '' });
+	if (next) {
+		const isEnding = /^SCENE_ENDING_/.test (next);
+		monogatari.storage ({
+			game: Object.assign ({}, game, {
+				current_scene_id: next,
+				is_ended: !!game.is_ended || isEnding
+			})
+		});
+		if (isEnding) {
+			// 엔딩 진입 — 배경을 엔딩 placeholder 로 스왑하고 LLMEnd 로.
+			const bgKey = SCENE_BG_KEY[next];
+			if (bgKey) {
+				try { monogatari.run ('show scene ' + bgKey + ' with fadeIn', false); } catch (e) {}
+			}
+			monogatari.state ({ label: 'LLMEnd', step: -1 });
+			return true;
+		}
+		const arr = (typeof monogatari.label === 'function' ? monogatari.label (next) : null);
+		if (Array.isArray (arr)) {
+			monogatari.state ({ label: next, step: -1 });
+			return true;
 		}
 	}
+	// 폴백: next_scene_id 가 없거나 라벨이 없으면 채팅으로 복귀.
+	monogatari.state ({ label: 'LLMChat', step: -1 });
+	return true;
 }
 
 async function fetchEndingContent () {
@@ -620,8 +691,8 @@ async function saveResumeSlot (reason = 'manual') {
 	}
 }
 
-function _shouldAutoSaveScriptState (label = monogatari.state ('label')) {
-	return SCRIPT_AUTOSAVE_LABELS.has (label) && monogatari.global ('playing') === true;
+function _shouldAutoSaveScriptState () {
+	return monogatari.global ('playing') === true;
 }
 
 function _scheduleScriptAutoSave (reason = 'script-state') {
@@ -654,10 +725,8 @@ function _installScriptAutoSaveHook () {
 		return;
 	}
 	_scriptAutoSaveInstalled = true;
-	target.addEventListener ('didUpdateState', (event) => {
-		const nextState = event?.detail?.newState || {};
-		const label = nextState.label || monogatari.state ('label');
-		if (!SCRIPT_AUTOSAVE_LABELS.has (label)) return;
+	target.addEventListener ('didUpdateState', () => {
+		// playing 동안 모든 state 변경에 대해 디바운스 저장 — _shouldAutoSaveScriptState 가 게이트.
 		_scheduleScriptAutoSave ('script-state');
 	});
 	window.addEventListener ('beforeunload', () => flushResumeSlotSave ('beforeunload'));
@@ -813,15 +882,14 @@ async function handleResume () {
 
 		if (CHAT_RESUME_LABELS.has (restoredLabel)) {
 			// 채팅 중간에서 재개 — boot.recent_messages 에 BE 데이터 주입한 뒤 LLMChat[0] 부터 다시 진입.
+			// next_scene_id / prev_scene_id 는 마지막 채팅에서 잡힌 미재생 전환을 보존하기 위해 그대로 둔다.
 			const prevLLM = monogatari.storage ('llm') || {};
 			const prevBoot = monogatari.storage ('boot') || {};
 			monogatari.storage ({
 				llm: Object.assign ({}, prevLLM, {
 					prompt: '',
 					response: '',
-					event_id: '',
-					next_scene_id: '',
-					shouldEnd: false
+					event_id: ''
 				}),
 				boot: Object.assign ({}, prevBoot, {
 					mode: 'loaded-slot',
@@ -1181,7 +1249,6 @@ function cleanupCustomUI () {
 	clearDialogLogDom ();
 	_sessionBootstrapped = false;
 	_seraCurrentSprite = null;
-	_playedSceneIntros.clear ();
 	const bgEl = document.querySelector ('[data-screen="game"] [data-ui="background"]');
 	if (bgEl) {
 		bgEl.style.backgroundImage = '';
@@ -1378,7 +1445,126 @@ monogatari.script ({
 		'y 잘 부탁드려요, {{player.name}}씨.',
 		'p 반갑습니다…!',
 		'p (어색한 첫 인사는 끝났다. 이제 뭐라고 말을 꺼내지…)',
-		'jump LLMChat'
+		// SCENE_FIRST_MEET 라벨로 위임 — 디스패처가 prev 추적할 수 있도록 라벨 단위로 진입.
+		'jump SCENE_FIRST_MEET'
+	],
+
+	// === 소마 일정 씬 (§1.4.2 SceneId) ===
+	// 각 라벨 구조: [<프롤로그>, 'jump LLMChat', <에필로그>, _gotoNextScene].
+	// LLMChat 가 scene_transition 을 받으면 _TransitionDispatch → 이 라벨의 'jump LLMChat' 다음 step (에필로그) 으로 복귀.
+	// 모든 씬에서 히로인이 출력되도록 'show character y …' 을 프롤로그·에필로그 시작에 명시.
+
+	'SCENE_FIRST_MEET': [
+		// 프롤로그는 NewGame 에서 이미 처리되므로 곧장 채팅으로.
+		'jump LLMChat',
+		// === 에필로그 ===
+		'show character y happy',
+		'어색하면서도 즐거웠던 첫 대화. 우리는 어쩌다 같은 팀이 되기로 했다.',
+		'y 그럼… 우리 같이 잘 해봐요!',
+		'p 네! 잘 부탁드려요.',
+		_gotoNextScene
+	],
+
+	'SCENE_PROJECT_PLAN_EVALUATION': [
+		// === 프롤로그 ===
+		'show scene scene_project_plan_evaluation with fadeIn',
+		'show character y calm with fadeIn',
+		'며칠 후, 첫 번째 관문인 기획 심의 날이 다가왔다.',
+		'p 드디어 발표 날이네… 잘할 수 있을까?',
+		'y 긴장돼요? 우리 충분히 준비했으니까 괜찮을 거예요.',
+		'jump LLMChat',
+		// === 에필로그 ===
+		'show character y happy',
+		'무사히 기획 심의를 마치고, 우리는 다음 일정으로 향했다.',
+		'y 휴~ 무사히 끝났네요. 수고하셨어요!',
+		'p 다행이다… 이제 발대식이지?',
+		_gotoNextScene
+	],
+
+	'SCENE_LAUNCH_CEREMONY': [
+		'show scene scene_launch_ceremony with fadeIn',
+		'show character y shy with fadeIn',
+		'정장 차림의 사람들로 가득 찬 회장. 발대식이 시작되려 한다.',
+		'p 이렇게 사람이 많을 줄이야…',
+		'y 우와… 진짜 정식으로 시작되는 느낌이네요.',
+		'jump LLMChat',
+		'show character y excited',
+		'발대식이 끝나고, 우리는 본격적인 개발 모드로 들어갔다.',
+		'y 자! 이제부터 진짜 시작이에요!',
+		'p 응! 열심히 하자.',
+		_gotoNextScene
+	],
+
+	'SCENE_MID_EVALUATION': [
+		'show scene scene_mid_evaluation with fadeIn',
+		'show character y calm with fadeIn',
+		'어느새 중간 평가가 다가왔다.',
+		'p 벌써 중간 평가네… 시간 진짜 빠르다.',
+		'y 그러게요… 잘 해봐요, 우리.',
+		'jump LLMChat',
+		'show character y sad',
+		'길고 긴 중간 평가가 끝났다.',
+		'y 후… 멘토님들 질문이 진짜 매서웠네요.',
+		'p 그래도 잘 막아낸 것 같아.',
+		_gotoNextScene
+	],
+
+	'SCENE_DEEP_DEV': [
+		'show scene scene_deep_dev with fadeIn',
+		'show character y shy with fadeIn',
+		'마감이 다가오자 우리는 센터에서 밤을 새기로 했다.',
+		'y 새벽까지 코딩이라니… 좀 떨려요.',
+		'p 카페인 챙겨왔어. 같이 끝내자!',
+		'jump LLMChat',
+		'show character y happy',
+		'동이 트는 창밖을 바라보며, 우리는 마지막 커밋을 푸시했다.',
+		'y 우리… 진짜 해냈네요…',
+		'p 응. 같이라서 가능했어.',
+		_gotoNextScene
+	],
+
+	'SCENE_FINAL_EVALUATION': [
+		'show scene scene_final_evaluation with fadeIn',
+		'show character y calm with fadeIn',
+		'마지막 발표의 날. 모두의 시선이 우리에게 모였다.',
+		'p 여기까지 왔구나… 잘하자!',
+		'y 우리가 만든 거, 그대로 보여주기만 하면 돼요.',
+		'jump LLMChat',
+		'show character y excited',
+		'박수 소리와 함께 발표가 끝났다.',
+		'y 진짜 끝났다… 믿기지 않아요.',
+		'p 수고했어. 정말 수고했어.',
+		_gotoNextScene
+	],
+
+	'SCENE_GRADUATION_BUSAN': [
+		'show scene scene_graduation_busan with fadeIn',
+		'show character y calm with fadeIn',
+		'부산행 KTX. 차창 밖으로 흘러가는 풍경이 어쩐지 아쉽다.',
+		'y 부산이라니… 진짜 마지막 같아요.',
+		'p 그러게… 1년이 진짜 빨리 갔다.',
+		'jump LLMChat',
+		'show character y shy',
+		'수료식이 끝나고, 우리는 광안리 바닷가에 섰다.',
+		'y {{player.name}}씨… 그동안 정말 즐거웠어요.',
+		_gotoNextScene
+	],
+
+	// 씬 전환 디스패처 — LLMChat Conditional 의 'transition' 분기에서 진입.
+	// prev 씬 라벨의 'jump LLMChat' 인덱스를 찾아 그 다음 step (에필로그 시작) 으로 state 를 옮긴다.
+	// engine 이 step++ 하므로 step:jumpIdx 로 두면 jumpIdx+1 이 실행된다.
+	'_TransitionDispatch': [
+		function () {
+			const llm = monogatari.storage ('llm') || {};
+			const prev = llm.prev_scene_id || '';
+			const jumpIdx = _findJumpLLMChatStep (prev);
+			if (jumpIdx >= 0) {
+				monogatari.state ({ label: prev, step: jumpIdx });
+				return true;
+			}
+			// prev 씬에 라벨이 없거나 'jump LLMChat' 마커가 없으면 곧장 다음 씬으로.
+			return _gotoNextScene ();
+		}
 	],
 
 	'LLMChat': [
@@ -1423,19 +1609,18 @@ monogatari.script ({
 				// 다음 LLMChat 진입(루프) 시 이 블록을 다시 타지 않도록 모드 전환.
 				this.storage ({ boot: Object.assign ({}, boot, { mode: boot.mode + '-played' }) });
 				// 배경 복원은 monogatari Scene action onLoad 가 자동 처리.
-			} else {
-				await playSceneIntroIfPending (this);
 			}
+			// 씬 프롤로그/에필로그는 monogatari.script 가 처리 — 여기서 별도로 재생하지 않는다.
 			clearSuggestions ();
 
 			const prevLLM = this.storage ('llm') || {};
+			// 채팅 입력 직전이라면 next_scene_id / prev_scene_id 는 항상 비어있다 (Conditional 가 직전에 소비).
+			// 다른 휘발 필드만 리셋.
 			this.storage ({
 				llm: Object.assign ({}, prevLLM, {
 					prompt: '',
 					response: '',
-					event_id: '',
-					next_scene_id: '',
-					shouldEnd: false
+					event_id: ''
 				})
 			});
 			monogatari.state ({ label: 'LLMChat', step: 0 });
@@ -1460,15 +1645,16 @@ monogatari.script ({
 					const prompt = input.trim ();
 					// 사용자 발화는 다음 step 의 'p {{llm.prompt}}' dialog 액션이 monogatari 표준 흐름으로
 					// dialog-log 컴포넌트에 push 한다. 별도의 영구 저장은 하지 않는다.
+					const prevLLM = this.storage ('llm') || {};
 					this.storage ({
-						llm: {
+						llm: Object.assign ({}, prevLLM, {
 							prompt: escapeDialogText (prompt),
 							response: '',
 							emotion: 'NEUTRAL',
 							event_id: '',
 							next_scene_id: '',
-							shouldEnd: false
-						}
+							prev_scene_id: ''
+						})
 					});
 
 					pendingStreamResponse = fetch (`${API_BASE}/chat`, {
@@ -1485,15 +1671,14 @@ monogatari.script ({
 					return true;
 				},
 				'Revert': function () {
+					const prevLLM = this.storage ('llm') || {};
 					this.storage ({
-						llm: {
+						llm: Object.assign ({}, prevLLM, {
 							prompt: '',
 							response: '',
 							emotion: 'NEUTRAL',
-							event_id: '',
-							next_scene_id: '',
-							shouldEnd: false
-						}
+							event_id: ''
+						})
 					});
 				},
 				'Warning': '1자 이상 300자 이하로 입력해 주세요.',
@@ -1514,9 +1699,7 @@ monogatari.script ({
 					llm: Object.assign ({}, prevLLM, {
 						prompt: '',
 						response: '',
-						event_id: '',
-						next_scene_id: '',
-						shouldEnd: false
+						event_id: ''
 					})
 				});
 				return true;
@@ -1759,7 +1942,11 @@ monogatari.script ({
 				});
 			}
 
-			const shouldEnd = !!(nextSceneId && /^SCENE_ENDING_/.test (nextSceneId));
+			// 씬 전환 트리거 — 이전 씬 id 는 에필로그 재생을 위해 보존한다.
+			// current_scene_id 자체는 _gotoNextScene 가 다음 라벨로 점프하기 직전에 갱신.
+			const prevGameForLLM = this.storage ('game') || {};
+			const prevSceneForTransition = nextSceneId ? (prevGameForLLM.current_scene_id || '') : '';
+			const isEnding = !!(nextSceneId && /^SCENE_ENDING_/.test (nextSceneId));
 			this.storage ({
 				llm: {
 					prompt: this.storage ('llm').prompt,
@@ -1767,12 +1954,14 @@ monogatari.script ({
 					emotion: lastState?.emotion || 'NEUTRAL',
 					event_id: triggeredEventId || '',
 					next_scene_id: nextSceneId || '',
-					shouldEnd
+					prev_scene_id: prevSceneForTransition
 				}
 			});
-			if (nextSceneId && !shouldEnd) {
-				const prevGame = this.storage ('game') || {};
-				this.storage ({ game: Object.assign ({}, prevGame, { current_scene_id: nextSceneId }) });
+			if (isEnding) {
+				// is_ended 는 GameState 의 단일 진실 — 엔딩 도달 여부는 이걸로만 판정.
+				this.storage ({
+					game: Object.assign ({}, prevGameForLLM, { is_ended: true })
+				});
 			}
 
 			return true;
@@ -1781,10 +1970,13 @@ monogatari.script ({
 		{
 			'Conditional': {
 				'Condition': function () {
-					return (this.storage ('llm') || {}).shouldEnd ? 'end' : 'continue';
+					const llm = this.storage ('llm') || {};
+					// scene_transition 발행됐으면 디스패처로 — 엔딩이면 디스패처가 _gotoNextScene 통해 LLMEnd 로 라우팅.
+					if (llm.next_scene_id) return 'transition';
+					return 'continue';
 				},
 				'continue': 'jump LLMChat',
-				'end': 'jump LLMEnd'
+				'transition': 'jump _TransitionDispatch'
 			}
 		}
 	],
@@ -1794,6 +1986,19 @@ monogatari.script ({
 			clearSuggestions ();
 			hideThinkingDots ();
 			hideHUD ();
+			// _gotoNextScene 가 이미 game.current_scene_id 와 배경을 엔딩 씬으로 갱신했지만,
+			// 직접 LLMEnd 로 진입하는 (드문) 경로 (resume 등) 에 대비해 한 번 더 보정.
+			const game = this.storage ('game') || {};
+			const sceneId = game.current_scene_id || '';
+			if (/^SCENE_ENDING_/.test (sceneId)) {
+				const bgKey = SCENE_BG_KEY[sceneId];
+				if (bgKey) {
+					try { await monogatari.run ('show scene ' + bgKey + ' with fadeIn', false); } catch (e) {}
+				}
+				if (!game.is_ended) {
+					this.storage ({ game: Object.assign ({}, game, { is_ended: true }) });
+				}
+			}
 			const ending = await fetchEndingContent ();
 			if (!ending) {
 				// BE 미가용 폴백
