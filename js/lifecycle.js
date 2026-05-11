@@ -16,10 +16,13 @@ function _installLifecycleHooks () {
 	document.addEventListener ('soma:refresh-menu', () => refreshSomaMainMenu ());
 
 	document.addEventListener ('click', (e) => {
-		if (e.target?.closest?.('[data-action="distraction-free"]')) {
+		const path = e.composedPath ? e.composedPath () : [];
+		const hit = path.some (el => el?.getAttribute?.('data-action') === 'distraction-free')
+			|| !!e.target?.closest?.('[data-action="distraction-free"]');
+		if (hit) {
 			setTimeout (_syncDistractionFree, 0);
 		}
-	});
+	}, true);
 	document.addEventListener ('keydown', (e) => {
 		if (e.key === 'h' || e.key === 'H') {
 			if (e.target?.matches?.('input, textarea, select')) return;
