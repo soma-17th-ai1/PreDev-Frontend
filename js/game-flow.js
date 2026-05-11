@@ -1,5 +1,5 @@
 import { monogatari } from './engine.js';
-import { SAVE_SLOT_KEY, CHAT_RESUME_LABELS, API_BASE } from './constants.js';
+import { SAVE_SLOT_KEY, API_BASE } from './constants.js';
 import {
 	fetchSessionMe,
 	postSessionsCreate,
@@ -200,7 +200,7 @@ export async function handleResume () {
 		const gameScreen = document.querySelector ('#monogatari [data-screen="game"]');
 		if (gameScreen && typeof gameScreen.setState === 'function') gameScreen.setState ({ open: true });
 
-		if (CHAT_RESUME_LABELS.has (restoredLabel)) {
+		if (restoredLabel.startsWith ('LLMChat')) {
 			const prevLLM = monogatari.storage ('llm') || {};
 			const prevBoot = monogatari.storage ('boot') || {};
 			monogatari.storage ({
@@ -214,7 +214,7 @@ export async function handleResume () {
 					recent_messages: recentMessages
 				})
 			});
-			monogatari.state ({ label: 'LLMChat', step: 0 });
+			monogatari.state ({ label: 'LLMChatInit', step: 0 });
 		}
 
 		const labels = monogatari.label ();

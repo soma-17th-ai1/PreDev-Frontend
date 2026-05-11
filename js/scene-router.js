@@ -1,6 +1,6 @@
 import { monogatari } from './engine.js';
 
-// 씬 라벨에서 'jump LLMChat' 의 인덱스를 찾는다.
+// 씬 라벨에서 'jump LLMChatInit' 의 인덱스를 찾는다.
 // _TransitionDispatch 가 에필로그 시작 step 을 계산할 때 사용.
 export function findJumpLLMChatStep (label) {
 	if (!label) return -1;
@@ -14,7 +14,7 @@ export function findJumpLLMChatStep (label) {
 	}
 	if (!Array.isArray (arr)) return -1;
 	for (let i = 0; i < arr.length; i++) {
-		if (arr[i] === 'jump LLMChat') return i;
+		if (arr[i] === 'jump LLMChatInit') return i;
 	}
 	return -1;
 }
@@ -47,6 +47,6 @@ export function gotoNextScene () {
 		}
 	}
 	// 폴백: next_scene_id 가 없거나 라벨이 없으면 채팅으로 복귀.
-	monogatari.state ({ label: 'LLMChat', step: -1 });
+	monogatari.state ({ label: 'LLMChatLoop', step: -1 });
 	return true;
 }
