@@ -6,8 +6,6 @@ import {
 	resetSeraSprite,
 	showThinkingDots,
 	hideThinkingDots,
-	flashAffinityVignette,
-	showEventToast,
 	clearSuggestions,
 	ensureHUD,
 	updateHUD,
@@ -18,9 +16,10 @@ import {
 	ensureLogButton,
 	typewriteAndAwait
 } from './ui.js';
+import { startSseStream, playChatTypewriter } from './chat-stream.js';
 import { bootstrapSessionOnce, fetchEndingContent } from './api.js';
 import { setGameActive, chatStreamState } from './game-flow.js';
-import { API_BASE, SCENE_BG_KEY, CHAT_RESUME_LABELS, escapeDialogText } from './constants.js';
+import { API_BASE, SCENE_BG_KEY, escapeDialogText } from './constants.js';
 
 // ─── Monogatari 등록 ───────────────────────────────────────────────────────────
 
@@ -202,7 +201,7 @@ monogatari.script ({
 	],
 
 	// === 소마 일정 씬 (§1.4.2 SceneId) ===
-	// 구조: [<프롤로그>, 'jump LLMChat', <에필로그>, gotoNextScene]
+	// 구조: [<프롤로그>, 'jump LLMChatInit', <에필로그>, gotoNextScene]
 
 	'SCENE_FIRST_MEET': [
 		'show character y calm with fadeIn',
@@ -234,7 +233,7 @@ monogatari.script ({
 		'y 잘 부탁드려요, {{player.name}}씨.',
 		'p 반갑습니다…!',
 		'p (어색한 첫 인사는 끝났다. 이제 뭐라고 말을 꺼내지…)',
-		'jump LLMChat',
+		'jump LLMChatInit',
 		// === 에필로그 ===
 		'show character y happy',
 		'어색하면서도 즐거웠던 첫 대화. 우리는 어쩌다 같은 팀이 되기로 했다.',
@@ -249,7 +248,7 @@ monogatari.script ({
 		'며칠 후, 첫 번째 관문인 기획 심의 날이 다가왔다.',
 		'p 드디어 발표 날이네… 잘할 수 있을까?',
 		'y 긴장돼요? 우리 충분히 준비했으니까 괜찮을 거예요.',
-		'jump LLMChat',
+		'jump LLMChatInit',
 		// === 에필로그 ===
 		'show character y happy',
 		'무사히 기획 심의를 마치고, 우리는 다음 일정으로 향했다.',
@@ -264,7 +263,7 @@ monogatari.script ({
 		'정장 차림의 사람들로 가득 찬 회장. 발대식이 시작되려 한다.',
 		'p 이렇게 사람이 많을 줄이야…',
 		'y 우와… 진짜 정식으로 시작되는 느낌이네요.',
-		'jump LLMChat',
+		'jump LLMChatInit',
 		'show character y excited',
 		'발대식이 끝나고, 우리는 본격적인 개발 모드로 들어갔다.',
 		'y 자! 이제부터 진짜 시작이에요!',
@@ -278,7 +277,7 @@ monogatari.script ({
 		'어느새 중간 평가가 다가왔다.',
 		'p 벌써 중간 평가네… 시간 진짜 빠르다.',
 		'y 그러게요… 잘 해봐요, 우리.',
-		'jump LLMChat',
+		'jump LLMChatInit',
 		'show character y sad',
 		'길고 긴 중간 평가가 끝났다.',
 		'y 후… 멘토님들 질문이 진짜 매서웠네요.',
@@ -292,7 +291,7 @@ monogatari.script ({
 		'마감이 다가오자 우리는 센터에서 밤을 새기로 했다.',
 		'y 새벽까지 코딩이라니… 좀 떨려요.',
 		'p 카페인 챙겨왔어. 같이 끝내자!',
-		'jump LLMChat',
+		'jump LLMChatInit',
 		'show character y happy',
 		'동이 트는 창밖을 바라보며, 우리는 마지막 커밋을 푸시했다.',
 		'y 우리… 진짜 해냈네요…',
@@ -306,7 +305,7 @@ monogatari.script ({
 		'마지막 발표의 날. 모두의 시선이 우리에게 모였다.',
 		'p 여기까지 왔구나… 잘하자!',
 		'y 우리가 만든 거, 그대로 보여주기만 하면 돼요.',
-		'jump LLMChat',
+		'jump LLMChatInit',
 		'show character y excited',
 		'박수 소리와 함께 발표가 끝났다.',
 		'y 진짜 끝났다… 믿기지 않아요.',
@@ -320,7 +319,7 @@ monogatari.script ({
 		'부산행 KTX. 차창 밖으로 흘러가는 풍경이 어쩐지 아쉽다.',
 		'y 부산이라니… 진짜 마지막 같아요.',
 		'p 그러게… 1년이 진짜 빨리 갔다.',
-		'jump LLMChat',
+		'jump LLMChatInit',
 		'show character y shy',
 		'수료식이 끝나고, 우리는 광안리 바닷가에 섰다.',
 		'y {{player.name}}씨… 그동안 정말 즐거웠어요.',
@@ -341,7 +340,7 @@ monogatari.script ({
 		}
 	],
 
-	'LLMChat': [
+	'LLMChatInit': [
 		async function () {
 			const boot = this.storage ('boot') || {};
 			const game = this.storage ('game') || {};
@@ -386,10 +385,12 @@ monogatari.script ({
 					event_id: ''
 				})
 			});
-			monogatari.state ({ label: 'LLMChat', step: 0 });
 			return true;
 		},
+		'jump LLMChatLoop'
+	],
 
+	'LLMChatLoop': [
 		{
 			'Input': {
 				'Text': '',
@@ -457,258 +458,53 @@ monogatari.script ({
 				console.warn ('[chat] skipped stale chat step without a pending stream');
 				const prevLLM = this.storage ('llm') || {};
 				this.storage ({
-					llm: Object.assign ({}, prevLLM, {
-						prompt: '',
-						response: '',
-						event_id: ''
-					})
+					llm: Object.assign ({}, prevLLM, { prompt: '', response: '', event_id: '' })
 				});
 				return true;
 			}
 			showThinkingDots ();
+			const stream = startSseStream (chatStreamState.pending);
+			chatStreamState.pending = null;
 
-			let textBuffer = '';
-			let streamComplete = false;
-			let metaArrived = false;
-			let nextSceneId = null;
-			let triggeredEventId = null;
-			let lastState = null;
-
-			const handleSseEvent = (event, payload) => {
-				const evtKey = String (event || '').toLowerCase ();
-				switch (evtKey) {
-					case 'meta':
-						if (payload?.emotion) updateSeraSprite (payload.emotion);
-						metaArrived = true;
-						hideThinkingDots ();
-						break;
-					case 'delta':
-					case 'message':
-						if (typeof payload?.text === 'string') textBuffer += payload.text;
-						else if (typeof payload?.chunk === 'string') textBuffer += payload.chunk;
-						else if (typeof payload?.content === 'string') textBuffer += payload.content;
-						else if (typeof payload?.delta === 'string') textBuffer += payload.delta;
-						break;
-					case 'state':
-						lastState = payload || {};
-						if (lastState.emotion) updateSeraSprite (lastState.emotion);
-						flashAffinityVignette (typeof lastState.affinity_delta === 'number' ? lastState.affinity_delta : 0);
-						updateHUD ({
-							progress: typeof lastState.progress === 'number' ? lastState.progress : undefined,
-							affinity: typeof lastState.affinity === 'number' ? lastState.affinity : undefined
-						});
-						break;
-					case 'event_trigger':
-						triggeredEventId = payload?.event_id || null;
-						if (triggeredEventId) showEventToast (triggeredEventId);
-						break;
-					case 'scene_transition':
-						nextSceneId = payload?.next_scene_id || null;
-						console.log ('[SSE scene_transition]', JSON.stringify (payload));
-						break;
-					case 'error':
-						if (!textBuffer) {
-							textBuffer = '지금은 연결이 좀 불안정한 것 같아요. 잠시 후에 다시 말을 걸어주실래요?';
-						}
-						break;
-					default:
-						console.warn ('[chat] 처리되지 않은 SSE 이벤트:', event, payload);
-				}
-			};
-
-			const parseSseBlock = (block, doneRef) => {
-				let evt = 'message';
-				let dataStr = '';
-				for (const rawLine of block.split (/\r?\n/)) {
-					const line = rawLine;
-					if (line.startsWith ('event:')) evt = line.slice (6).trim ();
-					else if (line.startsWith ('data:')) {
-						const part = line.slice (5).replace (/^\s/, '');
-						dataStr += (dataStr ? '\n' : '') + part;
-					}
-				}
-				if (evt === 'end') { doneRef.done = true; return; }
-				if (!dataStr) return;
-				let payload;
-				try { payload = JSON.parse (dataStr); }
-				catch (e) {
-					console.warn ('[chat] SSE data JSON parse 실패:', dataStr.slice (0, 200));
-					return;
-				}
-				handleSseEvent (evt, payload);
-			};
-
-			try {
-				const response = await chatStreamState.pending;
-				chatStreamState.pending = null;
-				if (!response.ok) throw new Error (`HTTP ${response.status}`);
-
-				const reader = response.body.getReader ();
-				const decoder = new TextDecoder ();
-
-				(async () => {
-					try {
-						let buf = '';
-						const doneRef = { done: false };
-						let processedAny = false;
-						while (!doneRef.done) {
-							const { done: d, value } = await reader.read ();
-							if (d) break;
-							buf += decoder.decode (value, { stream: true });
-							const blocks = buf.split (/\r?\n\r?\n/);
-							buf = blocks.pop () || '';
-							for (const block of blocks) {
-								if (!block.trim ()) continue;
-								parseSseBlock (block, doneRef);
-								processedAny = true;
-								if (doneRef.done) break;
-							}
-						}
-						buf += decoder.decode ();
-						if (buf.trim ()) {
-							for (const block of buf.split (/\r?\n\r?\n/)) {
-								if (!block.trim ()) continue;
-								parseSseBlock (block, doneRef);
-								processedAny = true;
-							}
-						}
-					} catch (e) {
-						console.error ('[chat] stream read error:', e);
-					}
-					streamComplete = true;
-				}) ();
-			} catch (error) {
-				console.error ('[chat] fetch failed:', error);
-				textBuffer = '지금은 연결이 좀 불안정한 것 같아요. 잠시 후에 다시 말을 걸어주실래요?';
-				streamComplete = true;
-			}
-
-			while (!metaArrived && !streamComplete && textBuffer.length === 0) {
+			while (!stream.metaArrived && !stream.done && stream.buffer.length === 0) {
 				await new Promise (r => setTimeout (r, 50));
 			}
 			hideThinkingDots ();
 			sayEl.innerHTML = '';
 
-			const PAGE_BREAK_THRESHOLD = 80;
-			let typed = 0;
-			let pageText = '';
-			let skipToBreak = false;
+			await playChatTypewriter (sayEl, stream);
 
-			let pageState = 'typing';
-			let resolveAdvance = null;
-
-			const handleInteract = (e) => {
-				if (e.type === 'keydown') {
-					if (e.isComposing || e.keyCode === 229) return;
-					if (!['Enter', ' ', 'ArrowRight'].includes (e.key)) return;
-				}
-				if (e.type === 'click' && e.target?.closest?.('text-input, button, select, input, textarea, .llm-suggestions')) return;
-				if (e.type === 'keydown') e.preventDefault ();
-				if (pageState === 'typing') {
-					skipToBreak = true;
-				} else if (pageState === 'waiting' && resolveAdvance) {
-					resolveAdvance ();
-					resolveAdvance = null;
-				}
-			};
-			document.addEventListener ('click', handleInteract);
-			document.addEventListener ('keydown', handleInteract);
-
-			const waitForAdvance = () => {
-				pageState = 'waiting';
-				if (sayEl) sayEl.classList.add ('say--awaiting');
-				return new Promise (r => { resolveAdvance = r; });
-			};
-			const finishWait = () => {
-				if (sayEl) sayEl.classList.remove ('say--awaiting');
-			};
-
-			const skipLeadingWhitespace = () => {
-				while (typed < textBuffer.length && ' \n\r\t'.includes (textBuffer[typed])) typed++;
-			};
-
-			while (typed >= textBuffer.length && !streamComplete) {
-				await new Promise (r => setTimeout (r, 10));
-			}
-			skipLeadingWhitespace ();
-
-			while (true) {
-				if (typed >= textBuffer.length) {
-					if (streamComplete) break;
-					await new Promise (r => setTimeout (r, 10));
-					continue;
-				}
-
-				const ch = textBuffer[typed++];
-				pageText += ch;
-				sayEl.innerHTML = escapeDialogText (pageText);
-
-				let dwell = 0;
-				if (/[.!?。！？]/.test (ch)) dwell = 70;
-				else if (ch === '…' || ch === '⋯') dwell = 180;
-				else if (/[,、]/.test (ch)) dwell = 35;
-
-				if (/[.!?。！？]/.test (ch) && pageText.length >= PAGE_BREAK_THRESHOLD) {
-					if (typed >= textBuffer.length && !streamComplete) {
-						await new Promise (r => setTimeout (r, 50));
-					}
-					const next = textBuffer[typed];
-					if (!next || next === ' ' || next === '\n') {
-						await waitForAdvance ();
-						finishWait ();
-						skipToBreak = false;
-						pageState = 'typing';
-						pageText = '';
-						sayEl.innerHTML = '';
-						skipLeadingWhitespace ();
-					}
-				}
-
-				if (!skipToBreak) {
-					await new Promise (r => setTimeout (r, 30 + dwell));
-				}
-			}
-
-			if (pageText.trim ()) {
-				await waitForAdvance ();
-				finishWait ();
-			}
-
-			document.removeEventListener ('click', handleInteract);
-			document.removeEventListener ('keydown', handleInteract);
-
-			if (textBuffer.trim ()) {
+			if (stream.buffer.trim ()) {
 				pushDialogLog ({
 					id: 'y',
 					name: '이세라',
 					color: '#ffb7d8',
-					dialog: escapeDialogText (textBuffer)
+					dialog: escapeDialogText (stream.buffer)
 				});
 			}
 
-			if (lastState) {
-				const prevGame = this.storage ('game') || {};
+			const prevGame = this.storage ('game') || {};
+			if (stream.lastState) {
+				const s = stream.lastState;
 				this.storage ({
 					game: {
-						affinity:        typeof lastState.affinity      === 'number' ? lastState.affinity      : prevGame.affinity      || 0,
-						affinity_delta:  typeof lastState.affinity_delta === 'number' ? lastState.affinity_delta : 0,
-						progress:        typeof lastState.progress      === 'number' ? lastState.progress      : prevGame.progress      || 0,
-						chat_count:      typeof lastState.chat_count    === 'number' ? lastState.chat_count    : prevGame.chat_count    || 0,
+						affinity:         typeof s.affinity       === 'number' ? s.affinity       : prevGame.affinity      || 0,
+						affinity_delta:   typeof s.affinity_delta  === 'number' ? s.affinity_delta  : 0,
+						progress:         typeof s.progress        === 'number' ? s.progress        : prevGame.progress      || 0,
+						chat_count:       typeof s.chat_count      === 'number' ? s.chat_count      : prevGame.chat_count    || 0,
 						current_scene_id: prevGame.current_scene_id || 'SCENE_FIRST_MEET'
 					}
 				});
 			}
 
-			const prevGameForLLM = this.storage ('game') || {};
-			const prevSceneForTransition = nextSceneId ? (prevGameForLLM.current_scene_id || '') : '';
 			this.storage ({
 				llm: {
-					prompt: this.storage ('llm').prompt,
-					response: textBuffer,
-					emotion: lastState?.emotion || 'NEUTRAL',
-					event_id: triggeredEventId || '',
-					next_scene_id: nextSceneId || '',
-					prev_scene_id: prevSceneForTransition
+					prompt:        this.storage ('llm').prompt,
+					response:      stream.buffer,
+					emotion:       stream.lastState?.emotion || 'NEUTRAL',
+					event_id:      stream.triggeredEventId || '',
+					next_scene_id: stream.nextSceneId || '',
+					prev_scene_id: stream.nextSceneId ? (prevGame.current_scene_id || '') : ''
 				}
 			});
 
@@ -722,7 +518,7 @@ monogatari.script ({
 					if (llm.next_scene_id) return 'transition';
 					return 'continue';
 				},
-				'continue': 'jump LLMChat',
+				'continue': 'jump LLMChatLoop',
 				'transition': 'jump _TransitionDispatch'
 			}
 		}

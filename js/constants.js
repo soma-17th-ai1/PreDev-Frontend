@@ -4,8 +4,6 @@ export const SAVE_SLOT_PREFIX = 'SaveLabel';
 export const SAVE_SLOT_ID = 1;
 export const SAVE_SLOT_KEY = 'Save_1';
 export const SAVE_SLOT_NAME = 'In Progress';
-// 자동 저장은 playing=true 인 동안 모든 라벨에서 발생.
-export const CHAT_RESUME_LABELS = new Set (['LLMChat']);
 export const RESUME_SLOT_SAVE_DELAY_MS = 180;
 
 export function finiteNumber (value, fallback = 0) {
