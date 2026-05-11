@@ -13,7 +13,8 @@ import {
 	pushRecentMessagesToDialogLog,
 	clearDialogLogDom,
 	ensureLogButton,
-	typewriteAndAwait
+	typewriteAndAwait,
+	showEndCredits
 } from './ui.js';
 import { startSseStream, playChatTypewriter } from './chat-stream.js';
 import { bootstrapSessionOnce, fetchEndingContent } from './api.js';
@@ -101,10 +102,7 @@ monogatari.script ({
 		// 인트로 직전 — blank_white SVG 로 즉시 흰 배경.
 		'show scene blank_white',
 		// 인트로 로고 오버레이.
-		async function () {
-			await showIntroLogo ();
-			return true;
-		},
+		showIntroLogo,
 		// 인트로 끝나면 검은 배경으로 페이드.
 		'show scene fade_black with fadeIn',
 		'jump NewGame'
@@ -512,38 +510,134 @@ monogatari.script ({
 		}
 	],
 
-	'LLMEnd': [
+	// 모든 엔딩의 진입점 — HUD 숨김, 배경 전환 후 해당 엔딩 씬으로 점프
+	'Ending': [
 		async function () {
 			hideThinkingDots ();
 			hideHUD ();
-
 			const game = this.storage ('game') || {};
 			const sceneId = game.current_scene_id || '';
 			const bgKey = SCENE_BG_KEY[sceneId];
 			if (bgKey) {
 				try { await monogatari.run ('show scene ' + bgKey + ' with fadeIn', false); } catch (e) {}
 			}
+			const label = (sceneId.startsWith('SCENE_') ? sceneId.slice(6) : 'ENDING_BAD');
+			monogatari.state ({ label, step: -1 });
+			return true;
+		}
+	],
+
+	// 즉시 베드엔딩 — 호감도 -100 인터럽트
+	'ENDING_INSTANT_BAD': [
+		'show character y angry with fadeIn',
+		'y 잠깐만요.',
+		'y 저, 지금 이 대화 더 이상 이어가기 힘들 것 같아요.',
+		'show character y disgust',
+		'y 솔직히 말할게요. 이 자리에 계속 있고 싶지 않아요.',
+		'그녀는 자리에서 일어나 가방을 챙겼다.',
+		'hide character y with fadeOut',
+		'어떤 말도 그녀의 발걸음을 붙잡지 못했다.',
+		'문이 닫혔다. 그게 전부였다.',
+		'우리의 이야기는, 그렇게 끝났다.',
+		'jump EndCredits'
+	],
+
+	// 일반 배드엔딩 — 호감도 ≤ -30
+	'ENDING_BAD': [
+		'show character y sad with fadeIn',
+		'수료식이 끝나고, 짧은 인사를 나눴다.',
+		'y 수고하셨어요.',
+		'p 어… 너도.',
+		'그뿐이었다.',
+		'hide character y with fadeOut',
+		'그 후로 연락은 없었다. 서로의 번호가 연락처에 남아 있었지만, 아무도 먼저 전화하지 않았다.',
+		'어느 날 우연히 그녀의 SNS를 검색했는데, 차단되어 있었다.',
+		'그제야 실감이 났다. 우리 사이는, 정말로 끝난 거라고.',
+		'jump EndCredits'
+	],
+
+	// 노멀엔딩 1 — 연락 없음 (-29 ≤ 호감도 ≤ 0)
+	'ENDING_NORMAL_NO_CONTACT': [
+		'show character y calm with fadeIn',
+		'수료식이 끝났다. 우리는 웃으며 짧게 인사를 나눴다.',
+		'y 같이 해서 좋았어요. 수고하셨어요!',
+		'p 저도요. 덕분에 잘 마무리됐어요.',
+		'hide character y with fadeOut',
+		'그것으로 끝이었다.',
+		'서로의 번호는 알고 있었지만, 굳이 먼저 연락할 이유는 없었다.',
+		'그녀와의 1년. 좋은 팀원이었고, 함께 만든 것도 있었다.',
+		'그냥, 그게 전부였다.',
+		'jump EndCredits'
+	],
+
+	// 노멀엔딩 2 — 가끔 연락 (1 ≤ 호감도 ≤ 29)
+	'ENDING_NORMAL_CONTACT': [
+		'show character y calm with fadeIn',
+		'수료식이 끝나고, 우리는 서로 연락처를 다시 확인했다.',
+		'y 가끔 연락해요! 밥도 먹고, 커피도 마시고.',
+		'p 그래. 나도 연락할게.',
+		'show character y happy',
+		'y 그럼 잘 지내요, {{player.name}}씨!',
+		'p 응, 너도 잘 지내.',
+		'hide character y with fadeOut',
+		'그 후로 우리는 가끔 안부를 전했다. 명절 연락, 취업 소식, 새 프로젝트 이야기…',
+		'특별하지는 않았지만, 잊지 않는 사이.',
+		'그것도 충분히 소중한 인연이었다.',
+		'jump EndCredits'
+	],
+
+	// 해피엔딩 — 30 ≤ 호감도 ≤ 99
+	'ENDING_HAPPY': [
+		'show character y happy with fadeIn',
+		'수료식이 끝난 저녁, 광안리 바닷가.',
+		'파도 소리가 두 사람 사이로 조용히 흘렀다.',
+		'y 있잖아요, {{player.name}}씨…',
+		'p 응?',
+		'show character y shy',
+		'y 이거 끝나고도… 자주 볼 수 있을까요?',
+		'p 물론이지. 왜, 보고 싶어?',
+		'show character y happy',
+		'y 조금… 많이.',
+		'p 하, 나도.',
+		'파도 소리가 두 사람의 웃음 속에 섞였다.',
+		'hide character y with fadeOut',
+		'그날 이후로도 우리는 계속 만났다. 주말마다, 때로는 평일에도.',
+		'사람들은 물었다. 연인이냐고.',
+		'우리는 대답하지 않았다. 그냥, 이대로가 충분히 좋았으니까.',
+		'jump EndCredits'
+	],
+
+	// 결혼 해피엔딩 — 호감도 ≥ 100
+	'ENDING_MARRIAGE': [
+		'show character y excited with fadeIn',
+		'수료식 날 저녁, 광안리 바닷가의 노을 아래.',
+		'y {{player.name}}씨, 저 드릴 말씀이 있어요.',
+		'p 응? 갑자기?',
+		'show character y shy',
+		'y 저는요… 이 1년 동안, {{player.name}}씨가 제일 좋았어요. 그 어느 것보다.',
+		'p 나도야.',
+		'show character y excited',
+		'y 그럼 앞으로도 같이 있어줄래요? 오래오래.',
+		'p 같이 있는 거야? 아니면…',
+		'show character y shy',
+		'y 같이 있는 거예요. 계속, 영원히.',
+		'p 응. 같이 있자.',
+		'노을이 두 사람을 물들였다. 파도 소리도, 갈매기 소리도, 세상의 모든 것이 멀어진 것 같았다.',
+		'hide character y with fadeOut',
+		'그로부터 2년 뒤, 가을.',
+		'그녀는 드레스를 입고 복도 끝에 서 있었다.',
+		'웨딩마치가 울렸다.',
+		'jump EndCredits'
+	],
+
+	// 엔딩 크레딧 — 최종 통계 오버레이
+	'EndCredits': [
+		async function () {
+			try { await monogatari.run ('show scene fade_black with fadeIn', false); } catch (e) {}
 			const ending = await fetchEndingContent ();
-			if (!ending) {
-				await typewriteAndAwait ('다음에 또 이야기해요, ' + ((this.storage ('player') || {}).name || '플레이어') + '씨.', { who: '이세라' });
-				return true;
-			}
-			if (ending.title) {
-				await typewriteAndAwait (`— ${ending.title} —`, { who: '' });
-			}
-			if (ending.narrative) {
-				const sentences = String (ending.narrative).split (/(?<=[\.\?\!。！？])\s+/);
-				let buf = '';
-				for (const s of sentences) {
-					if ((buf + ' ' + s).trim ().length > 120 && buf) {
-						await typewriteAndAwait (buf.trim (), { who: '' });
-						buf = s;
-					} else {
-						buf = (buf ? buf + ' ' : '') + s;
-					}
-				}
-				if (buf.trim ()) await typewriteAndAwait (buf.trim (), { who: '' });
-			}
+			if (!ending) return true;
+			const playerName = (this.storage ('player') || {}).name || '플레이어';
+			await showEndCredits (ending, playerName);
 			return true;
 		},
 		'end'

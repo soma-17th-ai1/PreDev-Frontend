@@ -37,7 +37,7 @@ export function gotoNextScene () {
 			})
 		});
 		if (isEnding) {
-			monogatari.state ({ label: 'LLMEnd', step: -1 });
+			monogatari.state ({ label: 'Ending', step: -1 });
 			return true;
 		}
 		const arr = (typeof monogatari.label === 'function' ? monogatari.label (next) : null);

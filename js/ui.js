@@ -12,35 +12,32 @@ import {
 // ─── 인트로 로고 ───────────────────────────────────────────────────────────────
 
 let _introLogoEl = null;
-export function showIntroLogo () {
-	return new Promise (async (resolve) => {
-		if (_introLogoEl) {
-			_introLogoEl.remove ();
-			_introLogoEl = null;
-		}
-		document.body.classList.add ('intro-active');
-		const overlay = document.createElement ('div');
-		overlay.className = 'intro-logo';
-		overlay.innerHTML = `
-			<div class="intro-logo__inner">
-				<img src="assets/logo/game_logo.jpeg" alt="커널을 좋아하는 옆자리의 그녀" />
-				<div class="intro-logo__subtitle">Software Maestro &times; First Love</div>
-			</div>
-		`;
-		document.body.appendChild (overlay);
-		_introLogoEl = overlay;
-
-		void overlay.offsetWidth;
-		overlay.classList.add ('intro-logo--visible');
-		await new Promise (r => setTimeout (r, 2500));
-		await new Promise (r => setTimeout (r, 2000));
-		overlay.classList.add ('intro-logo--leaving');
-		await new Promise (r => setTimeout (r, 1500));
-		if (overlay.parentNode) overlay.parentNode.removeChild (overlay);
+export async function showIntroLogo () {
+	if (_introLogoEl) {
+		_introLogoEl.remove ();
 		_introLogoEl = null;
-		document.body.classList.remove ('intro-active');
-		resolve ();
-	});
+	}
+	document.body.classList.add ('intro-active');
+	const overlay = document.createElement ('div');
+	overlay.className = 'intro-logo';
+	overlay.innerHTML = `
+		<div class="intro-logo__inner">
+			<img src="assets/logo/game_logo.jpeg" alt="커널을 좋아하는 옆자리의 그녀" />
+			<div class="intro-logo__subtitle">Software Maestro &times; First Love</div>
+		</div>
+	`;
+	document.body.appendChild (overlay);
+	_introLogoEl = overlay;
+
+	void overlay.offsetWidth;
+	overlay.classList.add ('intro-logo--visible');
+	await new Promise (r => setTimeout (r, 3500));
+	overlay.classList.add ('intro-logo--leaving');
+	await new Promise (r => setTimeout (r, 1500));
+	if (overlay.parentNode) overlay.parentNode.removeChild (overlay);
+	_introLogoEl = null;
+	document.body.classList.remove ('intro-active');
+	return true;
 }
 
 // ─── 세라 스프라이트 ───────────────────────────────────────────────────────────
@@ -197,6 +194,85 @@ export function typewriteAndAwait (text, opts = {}) {
 			}
 			sayEl.classList.add ('say--awaiting');
 		}) ();
+	});
+}
+
+// ─── 엔딩 크레딧 오버레이 ──────────────────────────────────────────────────────
+
+const BADGE_MAP = {
+	'ENDING_MARRIAGE':          { cls: 'marriage', text: '결혼 해피엔딩' },
+	'ENDING_HAPPY':             { cls: 'happy',    text: '해피엔딩' },
+	'ENDING_NORMAL_CONTACT':    { cls: 'normal',   text: '노멀엔딩' },
+	'ENDING_NORMAL_NO_CONTACT': { cls: 'normal',   text: '노멀엔딩' },
+	'ENDING_BAD':               { cls: 'bad',      text: '배드엔딩' },
+	'ENDING_INSTANT_BAD':       { cls: 'bad',      text: '배드엔딩' }
+};
+
+export function showEndCredits (ending, playerName) {
+	const stats = ending.stats || {};
+	const finalAffinity = ending.final_affinity ?? '?';
+	const totalChats    = stats.total_chats  ?? '?';
+	const maxAffinity   = stats.max_affinity  ?? '?';
+	const minAffinity   = stats.min_affinity  ?? '?';
+
+	const eventTexts = (stats.events_triggered || [])
+		.map (id => EVENT_LABELS[id]?.text)
+		.filter (Boolean);
+
+	const badge = BADGE_MAP[ending.ending_id] || { cls: 'normal', text: ending.title || '' };
+
+	const affinityNum = typeof finalAffinity === 'number' ? finalAffinity : null;
+	const affinityClass = affinityNum !== null
+		? (affinityNum >= 1 ? ' end-credits__stat-value--pos' : affinityNum < 0 ? ' end-credits__stat-value--neg' : '')
+		: '';
+
+	const eventsHtml = eventTexts.length
+		? `<div class="end-credits__events">${eventTexts.map (t => `<span class="end-credits__event-chip">${escapeDialogText (t)}</span>`).join ('')}</div>`
+		: '';
+
+	const overlay = document.createElement ('div');
+	overlay.className = 'end-credits';
+	overlay.innerHTML = `
+		<div class="end-credits__inner">
+			<div class="end-credits__kicker">이야기의 끝에서</div>
+			<h2 class="end-credits__title">${escapeDialogText (playerName)}의 이야기</h2>
+			<div class="end-credits__badge end-credits__badge--${badge.cls}">${badge.text}</div>
+			<div class="end-credits__divider"></div>
+			<div class="end-credits__stats">
+				<div class="end-credits__stat">
+					<span class="end-credits__stat-label">최종 호감도</span>
+					<span class="end-credits__stat-value${affinityClass}">${finalAffinity}</span>
+				</div>
+				<div class="end-credits__stat">
+					<span class="end-credits__stat-label">총 대화 횟수</span>
+					<span class="end-credits__stat-value">${totalChats}회</span>
+				</div>
+				<div class="end-credits__stat">
+					<span class="end-credits__stat-label">최고 호감도</span>
+					<span class="end-credits__stat-value">${maxAffinity}</span>
+				</div>
+				<div class="end-credits__stat">
+					<span class="end-credits__stat-label">최저 호감도</span>
+					<span class="end-credits__stat-value">${minAffinity}</span>
+				</div>
+			</div>
+			${eventsHtml}
+			<div class="end-credits__fin">— fin —</div>
+			<button class="end-credits__close">닫기</button>
+		</div>
+	`;
+
+	document.body.appendChild (overlay);
+	requestAnimationFrame (() => overlay.classList.add ('end-credits--visible'));
+
+	return new Promise ((resolve) => {
+		overlay.querySelector ('.end-credits__close').addEventListener ('click', () => {
+			overlay.classList.add ('end-credits--leaving');
+			setTimeout (() => {
+				if (overlay.parentNode) overlay.parentNode.removeChild (overlay);
+				resolve ();
+			}, 500);
+		});
 	});
 }
 

@@ -22,6 +22,7 @@ html, body {
 	height: 100%;
 	overflow: hidden;
 	overscroll-behavior: none;
+	font-family: "Gowun Batang", serif;
 }
 [data-screen="game"] {
 	overflow: hidden;
@@ -120,7 +121,7 @@ body:not(.game-active) .settings-quit-row {
 	z-index: 1;
 	text-align: center;
 	color: rgba(255, 255, 255, 0.92);
-	font-family: Georgia, "Times New Roman", serif;
+	font-family: "Gowun Batang", serif;
 	font-size: clamp(0.95rem, 1.6vw, 1.2rem);
 	font-weight: 700;
 	letter-spacing: 0.36rem;
@@ -462,7 +463,7 @@ button:hover {
 		radial-gradient(circle at 78% 26%, rgba(255, 211, 106, 0.65) 0 2px, transparent 3px 100%),
 		linear-gradient(110deg, rgba(255, 244, 249, 0.96) 0%, rgba(255, 244, 249, 0.78) 34%, rgba(255, 255, 255, 0.12) 64%),
 		linear-gradient(180deg, rgba(255, 130, 172, 0.18), rgba(127, 216, 206, 0.15)),
-		url("../assets/scenes/entrance.png");
+		url("../assets/images/main_title.png");
 	background-position: center;
 	background-size: 6rem 6rem, 9rem 9rem, cover, cover, cover;
 	color: var(--soma-ink);
@@ -475,7 +476,7 @@ button:hover {
 	inset: 0;
 	z-index: 0;
 	background:
-		linear-gradient(90deg, rgba(255, 248, 252, 0.98) 0%, rgba(255, 248, 252, 0.78) 42%, rgba(255, 248, 252, 0.08) 100%),
+		linear-gradient(90deg, rgba(255, 248, 252, 0.84) 0%, rgba(255, 248, 252, 0.65) 42%, rgba(255, 248, 252, 0.08) 100%),
 		radial-gradient(circle at 70% 62%, rgba(255, 214, 229, 0.78), transparent 32%),
 		radial-gradient(circle at 88% 16%, rgba(127, 216, 206, 0.5), transparent 24%);
 }
@@ -525,7 +526,7 @@ main-screen::after {
 	padding-left: 0.6rem;
 	border-left: 0.22rem solid var(--soma-pink);
 	color: rgba(45, 36, 49, 0.62);
-	font-family: Georgia, "Times New Roman", serif;
+	font-family: "Gowun Batang", serif;
 	font-size: clamp(0.75rem, 1.4vw, 1rem);
 	font-weight: 700;
 	letter-spacing: 0.34rem;
@@ -537,7 +538,7 @@ main-screen::after {
 	display: block;
 	max-width: 100%;
 	color: #ffffff;
-	font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+	font-family: "Gowun Batang", serif;
 	font-size: clamp(2.4rem, 5.6vw, 5rem);
 	font-weight: 900;
 	line-height: 1.15;
@@ -571,7 +572,7 @@ main-menu::after {
 		0 0.9rem 2rem rgba(97, 51, 71, 0.14),
 		inset 0 0 0 1px rgba(255, 255, 255, 0.72);
 	color: #5b3546;
-	font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+	font-family: "Gowun Batang", serif;
 	font-size: 1rem;
 	font-weight: 800;
 	letter-spacing: 0;
@@ -1495,3 +1496,157 @@ input[type=range]::-ms-fill-upper {
 	transform: translateY(1px);
 }
 
+/**
+ * ===========================
+ * 엔딩 크레딧 오버레이
+ * ===========================
+ */
+.end-credits {
+	position: fixed;
+	inset: 0;
+	z-index: 9500;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: radial-gradient(ellipse at center, rgba(12, 8, 22, 0.92) 0%, rgba(4, 2, 10, 0.98) 100%);
+	opacity: 0;
+	transition: opacity 800ms ease;
+	pointer-events: auto;
+}
+.end-credits--visible { opacity: 1; }
+.end-credits--leaving {
+	opacity: 0;
+	transition: opacity 500ms ease;
+}
+
+.end-credits__inner {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	width: min(440px, calc(100vw - 2.4rem));
+	padding: 2.8rem 2.4rem;
+	background: rgba(22, 14, 36, 0.65);
+	border: 1px solid rgba(255, 183, 216, 0.18);
+	border-radius: 16px;
+	box-shadow:
+		0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+		0 28px 80px rgba(0, 0, 0, 0.65);
+	text-align: center;
+	font-family: "Gowun Batang", serif;
+	color: #f3eef9;
+	backdrop-filter: blur(24px);
+}
+
+.end-credits__kicker {
+	font-size: 0.75rem;
+	letter-spacing: 0.32em;
+	color: rgba(255, 183, 216, 0.65);
+	margin-bottom: 1rem;
+}
+
+.end-credits__title {
+	font-size: clamp(1.3rem, 4vw, 1.7rem);
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	line-height: 1.2;
+	margin: 0 0 0.8rem;
+	text-shadow: 0 0 1.5rem rgba(255, 183, 216, 0.3);
+}
+
+.end-credits__badge {
+	display: inline-block;
+	padding: 0.28rem 1rem;
+	border-radius: 999px;
+	border: 1px solid currentColor;
+	font-size: 0.8rem;
+	letter-spacing: 0.1em;
+	margin-bottom: 1.8rem;
+	opacity: 0.88;
+}
+.end-credits__badge--marriage { color: #ffd36a; }
+.end-credits__badge--happy    { color: #ffb7d8; }
+.end-credits__badge--normal   { color: rgba(200, 200, 220, 0.85); }
+.end-credits__badge--bad      { color: #8ad8ff; }
+
+.end-credits__divider {
+	width: 3rem;
+	height: 1px;
+	background: linear-gradient(90deg, transparent, rgba(255, 183, 216, 0.45), transparent);
+	margin-bottom: 1.8rem;
+}
+
+.end-credits__stats {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	width: 100%;
+	margin-bottom: 1.4rem;
+}
+
+.end-credits__stat {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 1rem;
+	padding: 0 0.5rem;
+}
+
+.end-credits__stat-label {
+	font-size: 0.8rem;
+	color: rgba(255, 255, 255, 0.48);
+	letter-spacing: 0.04em;
+}
+
+.end-credits__stat-value {
+	font-size: 0.95rem;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	letter-spacing: 0.02em;
+}
+.end-credits__stat-value--pos { color: #ffb7d8; }
+.end-credits__stat-value--neg { color: #8ad8ff; }
+
+.end-credits__events {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.38rem;
+	justify-content: center;
+	margin-bottom: 1.4rem;
+	padding: 0 0.4rem;
+}
+
+.end-credits__event-chip {
+	padding: 0.2rem 0.6rem;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.05);
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	font-size: 0.72rem;
+	color: rgba(255, 255, 255, 0.58);
+	letter-spacing: 0.03em;
+}
+
+.end-credits__fin {
+	font-size: 0.85rem;
+	letter-spacing: 0.28em;
+	color: rgba(255, 183, 216, 0.55);
+	margin-bottom: 2rem;
+}
+
+.end-credits__close {
+	padding: 0.55rem 2.2rem;
+	border: 1px solid rgba(255, 183, 216, 0.32);
+	border-radius: 999px;
+	background: transparent;
+	color: rgba(255, 255, 255, 0.7);
+	font-family: "Gowun Batang", serif;
+	font-size: 0.88rem;
+	letter-spacing: 0.08em;
+	cursor: pointer;
+	transition: background 200ms ease, border-color 200ms ease, color 200ms ease, transform 150ms ease;
+}
+.end-credits__close:hover {
+	background: rgba(255, 183, 216, 0.1);
+	border-color: rgba(255, 183, 216, 0.65);
+	color: #fff;
+	transform: translateY(-1px);
+}
