@@ -625,7 +625,7 @@ monogatari.script ({
 		'hide character y with fadeOut',
 		// 1번째 일러 — 고백 장면
 		`show scene scene_ending_marriage_confession with fadeIn duration ${ENDING_BG_FADE_MS}ms`,
-		() => waitForClickHold (ENDING_BG_FADE_MS),
+		() => waitForClickHold (ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS),
 		// 검은 화면으로 페이드 후 시간 경과 narration
 		'show scene fade_black with fadeIn',
 		'그로부터 2년 뒤, 가을.',
