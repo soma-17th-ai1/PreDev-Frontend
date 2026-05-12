@@ -2,6 +2,8 @@ import { monogatari } from './engine.js';
 import { fetchSessionMe } from './api.js';
 import { hasLocalAutoSave } from './save.js';
 import { handleNewGame, handleResume, handleSomaQuit, handleDevStart } from './game-flow.js';
+import { promptAffinityInput } from './ui.js';
+import { API_BASE } from './constants.js';
 
 monogatari.registerListener ('soma-new', {
 	callback: function () {
@@ -87,21 +89,32 @@ document.addEventListener ('keydown', function (e) {
 	handleDevStart ();
 });
 
-// 인게임 확인용 단축키: Ctrl+Y → 현재 호감도에 맞는 엔딩으로 즉시 점프
-document.addEventListener ('keydown', function (e) {
+// 인게임 확인용 단축키: Ctrl+Y → 호감도 입력 → API로 엔딩 점프
+document.addEventListener ('keydown', async function (e) {
 	if (!e.ctrlKey || e.shiftKey || e.altKey || (e.key !== 'y' && e.key !== 'Y')) return;
 	if (!document.body.classList.contains ('game-active')) return;
 	e.preventDefault ();
+	const affinity = await promptAffinityInput ();
+	if (affinity === null || isNaN (affinity)) return;
+	let data;
+	try {
+		const res = await fetch (`${API_BASE}/dev/force-ending`, {
+			method: 'POST',
+			credentials: 'include',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify ({ affinity }),
+		});
+		if (!res.ok) { console.warn ('[dev-key] force-ending API 실패:', res.status); return; }
+		const json = await res.json ();
+		data = json?.data;
+	} catch (err) {
+		console.warn ('[dev-key] force-ending 요청 오류:', err);
+		return;
+	}
+	const sceneId = data?.ending_scene;
+	if (!sceneId) { console.warn ('[dev-key] ending_scene 없음:', data); return; }
+	console.debug ('[dev-key] Ctrl+Y → ' + sceneId + ' (affinity=' + affinity + ')');
 	const game = monogatari.storage ('game') || {};
-	const aff = typeof game.affinity === 'number' ? game.affinity : 0;
-	let sceneId;
-	if      (aff <= -100) sceneId = 'SCENE_ENDING_INSTANT_BAD';
-	else if (aff <= -30)  sceneId = 'SCENE_ENDING_BAD';
-	else if (aff <= 0)    sceneId = 'SCENE_ENDING_NORMAL_NO_CONTACT';
-	else if (aff <= 29)   sceneId = 'SCENE_ENDING_NORMAL_CONTACT';
-	else if (aff <= 99)   sceneId = 'SCENE_ENDING_HAPPY';
-	else                  sceneId = 'SCENE_ENDING_MARRIAGE';
-	console.debug ('[dev-key] Ctrl+Y → ' + sceneId + ' (affinity=' + aff + ')');
 	monogatari.storage ({ game: Object.assign ({}, game, { current_scene_id: sceneId }) });
 	monogatari.state ({ label: 'Ending', step: -1 });
 	try { monogatari.proceed ({ userInitiated: false, skip: false, autoPlay: false }); }

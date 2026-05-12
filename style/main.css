@@ -1289,6 +1289,25 @@ input[type=range]::-ms-fill-upper {
 }
 .confirm-modal__btn--ok:hover { background: rgba(210,100,100,0.9); }
 .confirm-modal__btn--cancel:hover { background: rgba(255,255,255,0.06); }
+.confirm-modal__input {
+	width: 100%;
+	box-sizing: border-box;
+	margin-bottom: 14px;
+	padding: 8px 10px;
+	border-radius: 8px;
+	border: 1px solid rgba(180,160,220,0.35);
+	background: rgba(255,255,255,0.07);
+	color: #f3eef9;
+	font-size: 0.95rem;
+	outline: none;
+}
+.confirm-modal__input:focus { border-color: rgba(180,160,220,0.7); }
+.confirm-modal__input--error { border-color: rgba(220,80,80,0.8); animation: shake 180ms ease; }
+@keyframes shake {
+	0%,100% { transform: translateX(0); }
+	25%      { transform: translateX(-5px); }
+	75%      { transform: translateX(5px); }
+}
 
 /**
  * ===========================

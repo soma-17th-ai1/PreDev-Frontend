@@ -371,6 +371,66 @@ export function confirmQuit () {
 	});
 }
 
+function _inputModal ({ title, body, placeholder = '0', ok = 'OK', cancel = 'Cancel' }) {
+	return new Promise ((resolve) => {
+		const overlay = document.createElement ('div');
+		overlay.className = 'confirm-modal';
+		overlay.innerHTML = `
+			<div class="confirm-modal__panel" role="alertdialog">
+				<div class="confirm-modal__title">${escapeDialogText (title || '')}</div>
+				<div class="confirm-modal__body">${escapeDialogText (body || '')}</div>
+				<input type="text" inputmode="numeric" class="confirm-modal__input"
+				       placeholder="${escapeDialogText (String (placeholder))}" />
+				<div class="confirm-modal__buttons">
+					<button type="button" class="confirm-modal__btn confirm-modal__btn--cancel">${escapeDialogText (cancel)}</button>
+					<button type="button" class="confirm-modal__btn confirm-modal__btn--ok">${escapeDialogText (ok)}</button>
+				</div>
+			</div>
+		`;
+		document.body.appendChild (overlay);
+		void overlay.offsetWidth;
+		overlay.classList.add ('confirm-modal--visible');
+		const input = overlay.querySelector ('.confirm-modal__input');
+		input.focus ();
+		const close = (value) => {
+			overlay.classList.remove ('confirm-modal--visible');
+			setTimeout (() => { if (overlay.parentNode) overlay.parentNode.removeChild (overlay); }, 250);
+			resolve (value);
+		};
+		overlay.querySelector ('.confirm-modal__btn--cancel').addEventListener ('click', () => close (null));
+		const parseAndClose = () => {
+			const v = input.value.trim ();
+			if (v === '') { close (null); return; }
+			const n = Number (v);
+			if (isNaN (n) || n < -100 || n > 100) {
+				input.classList.add ('confirm-modal__input--error');
+				input.select ();
+				return;
+			}
+			close (n);
+		};
+		overlay.querySelector ('.confirm-modal__btn--ok').addEventListener ('click', parseAndClose);
+		input.addEventListener ('input', () => input.classList.remove ('confirm-modal__input--error'));
+		input.addEventListener ('keydown', (e) => {
+			if (e.key === 'Enter') {
+				parseAndClose ();
+			} else if (e.key === 'Escape') {
+				close (null);
+			}
+		});
+	});
+}
+
+export function promptAffinityInput () {
+	return _inputModal ({
+		title:       '엔딩 점프 (개발용)',
+		body:        '진입할 호감도 수치를 입력하세요.',
+		placeholder: '0',
+		ok:          '점프',
+		cancel:      '취소',
+	});
+}
+
 // ─── HUD (진행도 / 호감도) ──────────────────────────────────────────────────
 
 let _hudEl = null;
