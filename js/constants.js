@@ -66,6 +66,35 @@ export const EVENT_LABELS = {
 	EVENT_DISLIKE_M70: { sign: '−', text: '호감도 -70 도달' }
 };
 
+export const SCENE_FILE = {
+	'blank_white':     'blank_white.svg',
+	'fade_black':      'fade_black.svg',
+	'bedroom_dawn':    'bedroom_dawn.svg',
+	'train_interior':  'metro.png',
+	'posttower_lobby': 'center_1floor.png',
+	'center_hall':     'entrance.png',
+	's1_room':         's1_room.png',
+	'scene_project_plan_evaluation':    'scene_project_plan_evaluation.svg',
+	'scene_launch_ceremony':            'scene_launch_ceremony.svg',
+	'scene_mid_evaluation':             'scene_mid_evaluation.svg',
+	'scene_deep_dev':                   'scene_deep_dev.svg',
+	'scene_final_evaluation':           'scene_final_evaluation.svg',
+	'scene_graduation_busan':           'scene_graduation_busan.svg',
+	'scene_beach_gwangalli':            'gwangalli.png',
+	'scene_ending_instant_bad':         'worst_bad_ending.png',
+	'scene_ending_bad':                 'bad_ending.png',
+	'scene_ending_normal_no_contact':   'normal1.png',
+	'scene_ending_normal_contact':      'normal2.png',
+	'scene_ending_happy':               'happy.png',
+	'scene_ending_marriage_confession': 'confession.png',
+	'scene_ending_marriage_wedding':    'marry.png'
+};
+
+export function sceneUrl (bgKey) {
+	const file = SCENE_FILE[bgKey];
+	return file ? `assets/scenes/${file}` : null;
+}
+
 export const SCENE_BG_KEY = {
 	SCENE_INTRO:                     'fade_black',
 	SCENE_FIRST_MEET:                's1_room',

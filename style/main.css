@@ -417,31 +417,11 @@ text-input.llm-input button:hover {
 	transition: opacity 1.2s ease;
 }
 
-/* 엔딩 대사가 끝난 뒤 엔딩 이미지를 풀스크린으로 보여주는 동안 텍스트박스를 숨김.
- * waitForClickHold() 가 부착, 클릭 시 해제. */
+/* showEndingImage() 실행 중 텍스트박스를 숨김. */
 body.ending-image-hold [data-component="text-box"],
 body.ending-image-hold [data-component="quick-menu"],
 body.ending-image-hold .log-button {
 	visibility: hidden !important;
-}
-
-/* 엔딩 일러스트는 cover 로 잘리지 않고 전체가 보이도록 contain + 검정 레터박스. */
-body.ending-image-hold [data-screen="game"] [data-ui="background"] {
-	background-size: contain !important;
-	background-color: #000 !important;
-}
-
-/* 엔딩 이미지 홀드 동안 클릭 한 번을 받기 위한 풀스크린 투명 오버레이. */
-.click-catcher {
-	position: fixed;
-	inset: 0;
-	z-index: 9300;
-	cursor: pointer;
-	background: transparent;
-}
-.click-catcher.fading-out {
-	background: #000;
-	cursor: default;
 }
 
 @media screen and (max-width: 37.5em) {
@@ -1550,6 +1530,13 @@ input[type=range]::-ms-fill-upper {
  * 엔딩 크레딧 오버레이
  * ===========================
  */
+.end-credits-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 9499;
+	background: #000;
+}
+
 .end-credits {
 	position: fixed;
 	inset: 0;
@@ -1557,7 +1544,7 @@ input[type=range]::-ms-fill-upper {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background: radial-gradient(ellipse at center, rgba(12, 8, 22, 0.92) 0%, rgba(4, 2, 10, 0.98) 100%);
+	background: radial-gradient(ellipse at center, rgb(12, 8, 22) 0%, rgb(4, 2, 10) 100%);
 	opacity: 0;
 	transition: opacity 800ms ease;
 	pointer-events: auto;

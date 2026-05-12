@@ -4,6 +4,7 @@ import {
 	SERA_SPRITE_FILE,
 	SERA_FADE_MS,
 	spriteUrl,
+	sceneUrl,
 	EVENT_LABELS,
 	finiteNumber,
 	API_BASE
@@ -231,6 +232,10 @@ export function showEndCredits (ending, playerName) {
 		? `<div class="end-credits__events">${eventTexts.map (t => `<span class="end-credits__event-chip">${escapeDialogText (t)}</span>`).join ('')}</div>`
 		: '';
 
+	const backdrop = document.createElement ('div');
+	backdrop.className = 'end-credits-backdrop';
+	document.body.appendChild (backdrop);
+
 	const overlay = document.createElement ('div');
 	overlay.className = 'end-credits';
 	overlay.innerHTML = `
@@ -271,20 +276,42 @@ export function showEndCredits (ending, playerName) {
 			overlay.classList.add ('end-credits--leaving');
 			setTimeout (() => {
 				if (overlay.parentNode) overlay.parentNode.removeChild (overlay);
+				if (backdrop.parentNode) backdrop.parentNode.removeChild (backdrop);
 				resolve ();
 			}, 500);
 		});
 	});
 }
 
-// ─── 클릭 한번 대기 (엔딩 이미지 홀드용) ─────────────────────────────────────
-// 풀스크린 투명 오버레이를 띄워 클릭 한 번을 잡고 promise를 resolve.
-// `body.ending-image-hold` 클래스도 함께 부착해 텍스트박스를 숨긴다.
-export function waitForClickHold (fadeInMs, fadeOutMs) {
+// ─── 엔딩 이미지 표시 + 클릭 대기 + 페이드아웃 ─────────────────────────────
+// bgKey 에 해당하는 이미지를 풀스크린 오버레이로 페이드인 → 클릭 대기 →
+// 검은 베일 페이드인 → 오버레이 제거까지 전부 책임진다.
+// 호출 전 Monogatari 씬을 fade_black 으로 고정해 두어야 페이드아웃이 자연스럽다.
+export function showEndingImage (bgKey, fadeInMs, fadeOutMs) {
+	const url = sceneUrl (bgKey);
 	return new Promise ((resolve) => {
 		document.body.classList.add ('ending-image-hold');
+
 		const overlay = document.createElement ('div');
-		overlay.className = 'click-catcher';
+		Object.assign (overlay.style, {
+			position:           'fixed',
+			inset:              '0',
+			zIndex:             '9300',
+			backgroundImage:    url ? `url('${url}')` : 'none',
+			backgroundSize:     'contain',
+			backgroundColor:    '#000',
+			backgroundRepeat:   'no-repeat',
+			backgroundPosition: 'center',
+			opacity:            '0',
+			cursor:             'pointer'
+		});
+		document.body.appendChild (overlay);
+
+		requestAnimationFrame (() => requestAnimationFrame (() => {
+			overlay.style.transition = `opacity ${fadeInMs}ms ease`;
+			overlay.style.opacity = '1';
+		}));
+
 		let ready = false;
 		let finishing = false;
 		setTimeout (() => { ready = true; }, fadeInMs);
@@ -293,21 +320,29 @@ export function waitForClickHold (fadeInMs, fadeOutMs) {
 			if (!ready || finishing) return;
 			finishing = true;
 			overlay.removeEventListener ('click', finish);
-			if (fadeOutMs > 0) {
-				overlay.style.transition = `background ${fadeOutMs}ms ease`;
-				overlay.classList.add ('fading-out');
-				// overlay와 ending-image-hold는 EndCredits 진입 시 정리
-				setTimeout (() => {
-					document.removeEventListener ('keydown', onKey, true);
-					resolve (true);
-				}, fadeOutMs);
-			} else {
+			overlay.style.cursor = 'default';
+
+			const veil = document.createElement ('div');
+			Object.assign (veil.style, {
+				position:   'absolute',
+				inset:      '0',
+				background: '#000',
+				opacity:    '0'
+			});
+			overlay.appendChild (veil);
+			requestAnimationFrame (() => requestAnimationFrame (() => {
+				veil.style.transition = `opacity ${fadeOutMs}ms ease`;
+				veil.style.opacity = '1';
+			}));
+
+			setTimeout (() => {
 				document.removeEventListener ('keydown', onKey, true);
 				document.body.classList.remove ('ending-image-hold');
 				if (overlay.parentNode) overlay.parentNode.removeChild (overlay);
 				resolve (true);
-			}
+			}, fadeOutMs);
 		};
+
 		const onKey = (e) => {
 			if (e.isComposing || e.keyCode === 229) return;
 			if (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowRight') {
@@ -320,7 +355,6 @@ export function waitForClickHold (fadeInMs, fadeOutMs) {
 		};
 		overlay.addEventListener ('click', finish);
 		document.addEventListener ('keydown', onKey, true);
-		document.body.appendChild (overlay);
 	});
 }
 

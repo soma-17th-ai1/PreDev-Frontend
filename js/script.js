@@ -15,7 +15,7 @@ import {
 	ensureLogButton,
 	typewriteAndAwait,
 	showEndCredits,
-	waitForClickHold
+	showEndingImage
 } from './ui.js';
 import { startSseStream, playChatTypewriter } from './chat-stream.js';
 import { bootstrapSessionOnce, fetchEndingContent } from './api.js';
@@ -623,29 +623,25 @@ monogatari.script ({
 		'p 응. 같이 있자.',
 		'노을이 두 사람을 물들였다. 파도 소리도, 갈매기 소리도, 세상의 모든 것이 멀어진 것 같았다.',
 		'hide character y with fadeOut',
-		// 1번째 일러 — 고백 장면
-		`show scene scene_ending_marriage_confession with fadeIn duration ${ENDING_BG_FADE_MS}ms`,
-		() => waitForClickHold (ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS),
-		// 검은 화면으로 페이드 후 시간 경과 narration
 		'show scene fade_black with fadeIn',
+		// 1번째 일러 — 고백 장면
+		() => showEndingImage ('scene_ending_marriage_confession', ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS),
+		// 시간 경과 narration
 		'그로부터 2년 뒤, 가을.',
 		'그녀는 드레스를 입고 복도 끝에 서 있었다.',
 		'웨딩마치가 울렸다.',
 		// 2번째 일러 — 결혼식 장면
-		`show scene scene_ending_marriage_wedding with fadeIn duration ${ENDING_BG_FADE_MS}ms`,
-		() => waitForClickHold (ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS),
+		() => showEndingImage ('scene_ending_marriage_wedding', ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS),
 		'jump EndCredits'
 	],
 
-	// 엔딩 대사 종료 후 — 각 엔딩 이미지로 페이드, 클릭 한 번 대기 후 크레딧으로 진행
+	// 엔딩 대사 종료 후 — 엔딩 이미지 표시, 클릭 한 번 대기 후 크레딧으로 진행
 	'EndingImageHold': [
+		'show scene fade_black with fadeIn',
 		async function () {
 			const game = this.storage ('game') || {};
 			const bgKey = SCENE_BG_KEY[game.current_scene_id || ''];
-			if (bgKey) {
-				try { await monogatari.run (`show scene ${bgKey} with fadeIn duration ${ENDING_BG_FADE_MS}ms`, false); } catch (e) {}
-			}
-			await waitForClickHold (ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS);
+			if (bgKey) await showEndingImage (bgKey, ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS);
 			return true;
 		},
 		'jump EndCredits'
@@ -653,10 +649,7 @@ monogatari.script ({
 
 	// 엔딩 크레딧 — 최종 통계 오버레이
 	'EndCredits': [
-		'show scene fade_black with fadeIn',
 		async function () {
-			document.querySelectorAll ('.click-catcher').forEach (el => el.remove ());
-			document.body.classList.remove ('ending-image-hold');
 			const ending = await fetchEndingContent ();
 			const playerName = (this.storage ('player') || {}).name || '플레이어';
 			await showEndCredits (ending, playerName);
