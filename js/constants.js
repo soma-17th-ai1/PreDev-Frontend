@@ -95,6 +95,27 @@ export function sceneUrl (bgKey) {
 	return file ? `assets/scenes/${file}` : null;
 }
 
+export const ENDING_DEX_KEY = 'SomaEndingDex.v1';
+
+export const ENDING_META = {
+	ENDING_MARRIAGE:          { order: 1, scenes: ['scene_ending_marriage_confession', 'scene_ending_marriage_wedding'] },
+	ENDING_HAPPY:             { order: 2, scenes: ['scene_ending_happy'] },
+	ENDING_NORMAL_CONTACT:    { order: 3, scenes: ['scene_ending_normal_contact'] },
+	ENDING_NORMAL_NO_CONTACT: { order: 4, scenes: ['scene_ending_normal_no_contact'] },
+	ENDING_BAD:               { order: 5, scenes: ['scene_ending_bad'] },
+	ENDING_INSTANT_BAD:       { order: 6, scenes: ['scene_ending_instant_bad'] }
+};
+
+export const SCENE_LABEL = {
+	scene_ending_marriage_confession: '결혼 — 고백',
+	scene_ending_marriage_wedding:    '결혼 — 식장',
+	scene_ending_happy:               '해피',
+	scene_ending_normal_contact:      '노멀 (연락)',
+	scene_ending_normal_no_contact:   '노멀 (단절)',
+	scene_ending_bad:                 '배드',
+	scene_ending_instant_bad:         '즉시 배드'
+};
+
 export const SCENE_BG_KEY = {
 	SCENE_INTRO:                     'fade_black',
 	SCENE_FIRST_MEET:                's1_room',

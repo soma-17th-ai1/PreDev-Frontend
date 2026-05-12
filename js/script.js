@@ -15,11 +15,13 @@ import {
 	ensureLogButton,
 	typewriteAndAwait,
 	showEndCredits,
-	showEndingImage
+	showEndingImage,
+	lockToBlack
 } from './ui.js';
 import { startSseStream, playChatTypewriter } from './chat-stream.js';
 import { bootstrapSessionOnce, fetchEndingContent } from './api.js';
-import { setGameActive, chatStreamState } from './game-flow.js';
+import { saveEndingClear } from './ending-dex.js';
+import { setGameActive, chatStreamState, finalizeEndingCleanup } from './game-flow.js';
 import { API_BASE, escapeDialogText, ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS, SCENE_BG_KEY } from './constants.js';
 
 // ─── Monogatari 등록 ───────────────────────────────────────────────────────────
@@ -650,9 +652,12 @@ monogatari.script ({
 	// 엔딩 크레딧 — 최종 통계 오버레이
 	'EndCredits': [
 		async function () {
+			lockToBlack ();
 			const ending = await fetchEndingContent ();
 			const playerName = (this.storage ('player') || {}).name || '플레이어';
+			if (ending) saveEndingClear (ending, playerName);
 			await showEndCredits (ending, playerName);
+			await finalizeEndingCleanup ();
 			return true;
 		},
 		'end'

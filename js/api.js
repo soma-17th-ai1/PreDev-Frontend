@@ -68,6 +68,13 @@ export async function fetchResume () {
 	} catch (e) { return { ok: false, status: 0 }; }
 }
 
+export async function deleteSession () {
+	await fetch (`${API_BASE}/sessions/me`, {
+		method: 'DELETE',
+		credentials: 'include'
+	});
+}
+
 export async function fetchEndingContent () {
 	try {
 		const res = await fetch (`${API_BASE}/game/ending`, { credentials: 'include' });

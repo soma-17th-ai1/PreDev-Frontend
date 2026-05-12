@@ -4,6 +4,7 @@ import {
 	fetchSessionMe,
 	postSessionsCreate,
 	fetchResume,
+	deleteSession,
 	resetSessionBootstrapFlag,
 	setSessionBootstrapped
 } from './api.js';
@@ -81,6 +82,17 @@ export function cleanupCustomUI () {
 		bgEl.style.transition = '';
 	}
 	// menu.js 의 refreshSomaMainMenu 는 lifecycle 훅에서 MutationObserver 가 호출.
+}
+
+export async function finalizeEndingCleanup () {
+	cancelPendingAutoSave ();
+	monogatari.global ('playing', false);
+	try { await monogatari.Storage.remove (SAVE_SLOT_KEY); } catch (e) {}
+	try { await monogatari.Storage.remove ('AutoSave_1'); } catch (e) {}
+	await deleteSession ();
+	resetSessionBootstrapFlag ();
+	document.dispatchEvent (new CustomEvent ('soma:refresh-menu'));
+	document.dispatchEvent (new CustomEvent ('soma:refresh-ending-list'));
 }
 
 export async function engineStart () {

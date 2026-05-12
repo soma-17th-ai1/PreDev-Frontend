@@ -200,7 +200,7 @@ export function typewriteAndAwait (text, opts = {}) {
 
 // ─── 엔딩 크레딧 오버레이 ──────────────────────────────────────────────────────
 
-const BADGE_MAP = {
+export const BADGE_MAP = {
 	'ENDING_MARRIAGE':          { cls: 'marriage', text: '결혼 해피엔딩' },
 	'ENDING_HAPPY':             { cls: 'happy',    text: '해피엔딩' },
 	'ENDING_NORMAL_CONTACT':    { cls: 'normal',   text: '노멀엔딩' },
@@ -209,7 +209,18 @@ const BADGE_MAP = {
 	'ENDING_INSTANT_BAD':       { cls: 'bad',      text: '배드엔딩' }
 };
 
+let _endCreditsBackdrop = null;
+
+export function lockToBlack () {
+	if (_endCreditsBackdrop) return;
+	const backdrop = document.createElement ('div');
+	backdrop.className = 'end-credits-backdrop';
+	document.body.appendChild (backdrop);
+	_endCreditsBackdrop = backdrop;
+}
+
 export function showEndCredits (ending, playerName) {
+	const backdrop = _endCreditsBackdrop;
 	ending = ending || {};
 	const stats = ending.stats || {};
 	const finalAffinity = ending.final_affinity ?? '?';
@@ -231,10 +242,6 @@ export function showEndCredits (ending, playerName) {
 	const eventsHtml = eventTexts.length
 		? `<div class="end-credits__events">${eventTexts.map (t => `<span class="end-credits__event-chip">${escapeDialogText (t)}</span>`).join ('')}</div>`
 		: '';
-
-	const backdrop = document.createElement ('div');
-	backdrop.className = 'end-credits-backdrop';
-	document.body.appendChild (backdrop);
 
 	const overlay = document.createElement ('div');
 	overlay.className = 'end-credits';
@@ -276,7 +283,8 @@ export function showEndCredits (ending, playerName) {
 			overlay.classList.add ('end-credits--leaving');
 			setTimeout (() => {
 				if (overlay.parentNode) overlay.parentNode.removeChild (overlay);
-				if (backdrop.parentNode) backdrop.parentNode.removeChild (backdrop);
+				if (backdrop && backdrop.parentNode) backdrop.parentNode.removeChild (backdrop);
+				_endCreditsBackdrop = null;
 				resolve ();
 			}, 500);
 		});
