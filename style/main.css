@@ -420,7 +420,8 @@ text-input.llm-input button:hover {
 /* 엔딩 대사가 끝난 뒤 엔딩 이미지를 풀스크린으로 보여주는 동안 텍스트박스를 숨김.
  * waitForClickHold() 가 부착, 클릭 시 해제. */
 body.ending-image-hold [data-component="text-box"],
-body.ending-image-hold [data-component="quick-menu"] {
+body.ending-image-hold [data-component="quick-menu"],
+body.ending-image-hold .log-button {
 	visibility: hidden !important;
 }
 
@@ -437,6 +438,10 @@ body.ending-image-hold [data-screen="game"] [data-ui="background"] {
 	z-index: 9300;
 	cursor: pointer;
 	background: transparent;
+}
+.click-catcher.fading-out {
+	background: #000;
+	cursor: default;
 }
 
 @media screen and (max-width: 37.5em) {
@@ -1396,23 +1401,26 @@ input[type=range]::-ms-fill-upper {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 12px 16px;
+	padding: 16px 12px;
 	border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 .log-viewer__title {
 	font-weight: 700;
 	letter-spacing: 0.04em;
+	padding: 4px 12px;
 }
-.log-viewer__close {
+.log-viewer__header .log-viewer__close {
 	background: transparent;
 	border: none;
 	color: #f3eef9;
-	font-size: 1.1rem;
+	font-size: 1.5rem;
 	cursor: pointer;
-	padding: 4px 8px;
-	border-radius: 6px;
+	margin: 0px 10px;
+	border-radius: 4px;
+	width: 4.5rem !important;
+	height: 3rem !important;
 }
-.log-viewer__close:hover { background: rgba(255,255,255,0.06); }
+.log-viewer__header .log-viewer__close:hover { background: rgba(255,255,255,0.06); }
 .log-viewer__more {
 	margin: 8px 12px;
 	padding: 6px 10px;

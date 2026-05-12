@@ -63,7 +63,7 @@ export function cleanupCustomUI () {
 	hideThinkingDots ();
 	hideHUD ();
 	if (isLogViewerOpen ()) closeLogViewer ();
-	document.querySelectorAll ('.log-button, .event-toast, .affinity-vignette').forEach (n => n.remove ());
+	document.querySelectorAll ('.event-toast, .affinity-vignette').forEach (n => n.remove ());
 	document.querySelectorAll ('.main-menu-overlay, .confirm-modal').forEach (n => n.remove ());
 	document.querySelectorAll ('text-input').forEach (n => n.remove ());
 	const sayEl = document.querySelector ('[data-ui="say"]');

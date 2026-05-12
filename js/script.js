@@ -20,7 +20,7 @@ import {
 import { startSseStream, playChatTypewriter } from './chat-stream.js';
 import { bootstrapSessionOnce, fetchEndingContent } from './api.js';
 import { setGameActive, chatStreamState } from './game-flow.js';
-import { API_BASE, SCENE_BG_KEY, escapeDialogText } from './constants.js';
+import { API_BASE, escapeDialogText, ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS, SCENE_BG_KEY } from './constants.js';
 
 // ─── Monogatari 등록 ───────────────────────────────────────────────────────────
 
@@ -243,7 +243,7 @@ monogatari.script ({
 
 	'SCENE_LAUNCH_CEREMONY': [
 		'show scene scene_launch_ceremony with fadeIn',
-		'show character y shy with fadeIn',
+		'show character y excited with fadeIn',
 		'정장 차림의 사람들로 가득 찬 회장. 발대식이 시작되려 한다.',
 		'p 이렇게 사람이 많을 줄이야…',
 		'y 우와… 진짜 정식으로 시작되는 느낌이네요.',
@@ -348,7 +348,6 @@ monogatari.script ({
 				affinity: typeof game.affinity === 'number' ? game.affinity : 0
 			});
 			resetSeraSprite ();
-			ensureLogButton ();
 
 			if (boot.mode === 'resume' || boot.mode === 'loaded-slot') {
 				const recent = Array.isArray (boot.recent_messages) ? boot.recent_messages : [];
@@ -542,7 +541,7 @@ monogatari.script ({
 		'어떤 말도 그녀의 발걸음을 붙잡지 못했다.',
 		'문이 닫혔다. 그게 전부였다.',
 		'우리의 이야기는, 그렇게 끝났다.',
-		'jump _EndingImageHold'
+		'jump EndingImageHold'
 	],
 
 	// 일반 배드엔딩 — 호감도 ≤ -30
@@ -556,7 +555,7 @@ monogatari.script ({
 		'그 후로 연락은 없었다. 서로의 번호가 연락처에 남아 있었지만, 아무도 먼저 전화하지 않았다.',
 		'어느 날 우연히 그녀의 SNS를 검색했는데, 차단되어 있었다.',
 		'그제야 실감이 났다. 우리 사이는, 정말로 끝난 거라고.',
-		'jump _EndingImageHold'
+		'jump EndingImageHold'
 	],
 
 	// 노멀엔딩 1 — 연락 없음 (-29 ≤ 호감도 ≤ 0)
@@ -570,7 +569,7 @@ monogatari.script ({
 		'서로의 번호는 알고 있었지만, 굳이 먼저 연락할 이유는 없었다.',
 		'그녀와의 1년. 좋은 팀원이었고, 함께 만든 것도 있었다.',
 		'그냥, 그게 전부였다.',
-		'jump _EndingImageHold'
+		'jump EndingImageHold'
 	],
 
 	// 노멀엔딩 2 — 가끔 연락 (1 ≤ 호감도 ≤ 29)
@@ -586,7 +585,7 @@ monogatari.script ({
 		'그 후로 우리는 가끔 안부를 전했다. 명절 연락, 취업 소식, 새 프로젝트 이야기…',
 		'특별하지는 않았지만, 잊지 않는 사이.',
 		'그것도 충분히 소중한 인연이었다.',
-		'jump _EndingImageHold'
+		'jump EndingImageHold'
 	],
 
 	// 해피엔딩 — 30 ≤ 호감도 ≤ 99
@@ -605,7 +604,7 @@ monogatari.script ({
 		'그날 이후로도 우리는 계속 만났다. 주말마다, 때로는 평일에도.',
 		'사람들은 물었다. 연인이냐고.',
 		'우리는 대답하지 않았다. 그냥, 이대로가 충분히 좋았으니까.',
-		'jump _EndingImageHold'
+		'jump EndingImageHold'
 	],
 
 	// 결혼 해피엔딩 — 호감도 ≥ 100
@@ -625,35 +624,28 @@ monogatari.script ({
 		'노을이 두 사람을 물들였다. 파도 소리도, 갈매기 소리도, 세상의 모든 것이 멀어진 것 같았다.',
 		'hide character y with fadeOut',
 		// 1번째 일러 — 고백 장면
-		async function () {
-			try { await monogatari.run ('show scene scene_ending_marriage_confession with fadeIn', false); } catch (e) {}
-			await waitForClickHold ();
-			return true;
-		},
+		`show scene scene_ending_marriage_confession with fadeIn duration ${ENDING_BG_FADE_MS}ms`,
+		() => waitForClickHold (ENDING_BG_FADE_MS),
 		// 검은 화면으로 페이드 후 시간 경과 narration
 		'show scene fade_black with fadeIn',
 		'그로부터 2년 뒤, 가을.',
 		'그녀는 드레스를 입고 복도 끝에 서 있었다.',
 		'웨딩마치가 울렸다.',
 		// 2번째 일러 — 결혼식 장면
-		async function () {
-			try { await monogatari.run ('show scene scene_ending_marriage_wedding with fadeIn', false); } catch (e) {}
-			await waitForClickHold ();
-			return true;
-		},
+		`show scene scene_ending_marriage_wedding with fadeIn duration ${ENDING_BG_FADE_MS}ms`,
+		() => waitForClickHold (ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS),
 		'jump EndCredits'
 	],
 
 	// 엔딩 대사 종료 후 — 각 엔딩 이미지로 페이드, 클릭 한 번 대기 후 크레딧으로 진행
-	'_EndingImageHold': [
+	'EndingImageHold': [
 		async function () {
 			const game = this.storage ('game') || {};
-			const sceneId = game.current_scene_id || '';
-			const bgKey = SCENE_BG_KEY[sceneId];
+			const bgKey = SCENE_BG_KEY[game.current_scene_id || ''];
 			if (bgKey) {
-				try { await monogatari.run ('show scene ' + bgKey + ' with fadeIn', false); } catch (e) {}
+				try { await monogatari.run (`show scene ${bgKey} with fadeIn duration ${ENDING_BG_FADE_MS}ms`, false); } catch (e) {}
 			}
-			await waitForClickHold ();
+			await waitForClickHold (ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS);
 			return true;
 		},
 		'jump EndCredits'
@@ -661,10 +653,11 @@ monogatari.script ({
 
 	// 엔딩 크레딧 — 최종 통계 오버레이
 	'EndCredits': [
+		'show scene fade_black with fadeIn',
 		async function () {
-			try { await monogatari.run ('show scene fade_black with fadeIn', false); } catch (e) {}
+			document.querySelectorAll ('.click-catcher').forEach (el => el.remove ());
+			document.body.classList.remove ('ending-image-hold');
 			const ending = await fetchEndingContent ();
-			if (!ending) return true;
 			const playerName = (this.storage ('player') || {}).name || '플레이어';
 			await showEndCredits (ending, playerName);
 			return true;

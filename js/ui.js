@@ -209,6 +209,7 @@ const BADGE_MAP = {
 };
 
 export function showEndCredits (ending, playerName) {
+	ending = ending || {};
 	const stats = ending.stats || {};
 	const finalAffinity = ending.final_affinity ?? '?';
 	const totalChats    = stats.total_chats  ?? '?';
@@ -279,17 +280,46 @@ export function showEndCredits (ending, playerName) {
 // ─── 클릭 한번 대기 (엔딩 이미지 홀드용) ─────────────────────────────────────
 // 풀스크린 투명 오버레이를 띄워 클릭 한 번을 잡고 promise를 resolve.
 // `body.ending-image-hold` 클래스도 함께 부착해 텍스트박스를 숨긴다.
-export function waitForClickHold () {
+export function waitForClickHold (fadeInMs, fadeOutMs) {
 	return new Promise ((resolve) => {
 		document.body.classList.add ('ending-image-hold');
 		const overlay = document.createElement ('div');
 		overlay.className = 'click-catcher';
+		let ready = false;
+		let finishing = false;
+		setTimeout (() => { ready = true; }, fadeInMs);
+
 		const finish = () => {
-			document.body.classList.remove ('ending-image-hold');
-			if (overlay.parentNode) overlay.parentNode.removeChild (overlay);
-			resolve ();
+			if (!ready || finishing) return;
+			finishing = true;
+			overlay.removeEventListener ('click', finish);
+			if (fadeOutMs > 0) {
+				overlay.style.transition = `background ${fadeOutMs}ms ease`;
+				overlay.classList.add ('fading-out');
+				// overlay와 ending-image-hold는 EndCredits 진입 시 정리
+				setTimeout (() => {
+					document.removeEventListener ('keydown', onKey, true);
+					resolve (true);
+				}, fadeOutMs);
+			} else {
+				document.removeEventListener ('keydown', onKey, true);
+				document.body.classList.remove ('ending-image-hold');
+				if (overlay.parentNode) overlay.parentNode.removeChild (overlay);
+				resolve (true);
+			}
 		};
-		overlay.addEventListener ('click', finish, { once: true });
+		const onKey = (e) => {
+			if (e.isComposing || e.keyCode === 229) return;
+			if (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowRight') {
+				e.preventDefault ();
+				finish ();
+			} else if (e.key === 'ArrowLeft') {
+				e.preventDefault ();
+				e.stopImmediatePropagation ();
+			}
+		};
+		overlay.addEventListener ('click', finish);
+		document.addEventListener ('keydown', onKey, true);
 		document.body.appendChild (overlay);
 	});
 }

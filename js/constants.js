@@ -5,6 +5,8 @@ export const SAVE_SLOT_ID = 1;
 export const SAVE_SLOT_KEY = 'Save_1';
 export const SAVE_SLOT_NAME = 'In Progress';
 export const RESUME_SLOT_SAVE_DELAY_MS = 180;
+export const ENDING_BG_FADE_MS = 2500;
+export const ENDING_BG_FADE_OUT_MS = 800;
 
 export function finiteNumber (value, fallback = 0) {
 	if (typeof value === 'number' && Number.isFinite (value)) return value;
