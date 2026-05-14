@@ -259,7 +259,7 @@ monogatari.script ({
 		'show character y happy',
 		'동이 트는 창밖을 바라보며, 우리는 마지막 커밋을 푸시했다.',
 		'y 우리… 진짜 해냈네요…',
-		'p 응. 같이라서 가능했어.',
+		'p 응. 함께라서 가능했어.',
 		gotoNextScene
 	],
 
