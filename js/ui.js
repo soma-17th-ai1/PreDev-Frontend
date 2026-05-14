@@ -4,6 +4,7 @@ import {
 	SERA_SPRITE_FILE,
 	SERA_FADE_MS,
 	spriteUrl,
+	sceneUrl,
 	EVENT_LABELS,
 	finiteNumber,
 	API_BASE
@@ -199,7 +200,7 @@ export function typewriteAndAwait (text, opts = {}) {
 
 // ─── 엔딩 크레딧 오버레이 ──────────────────────────────────────────────────────
 
-const BADGE_MAP = {
+export const BADGE_MAP = {
 	'ENDING_MARRIAGE':          { cls: 'marriage', text: '결혼 해피엔딩' },
 	'ENDING_HAPPY':             { cls: 'happy',    text: '해피엔딩' },
 	'ENDING_NORMAL_CONTACT':    { cls: 'normal',   text: '노멀엔딩' },
@@ -208,7 +209,18 @@ const BADGE_MAP = {
 	'ENDING_INSTANT_BAD':       { cls: 'bad',      text: '배드엔딩' }
 };
 
+let _endCreditsBackdrop = null;
+
+export function lockToBlack () {
+	if (_endCreditsBackdrop) return;
+	const backdrop = document.createElement ('div');
+	backdrop.className = 'end-credits-backdrop';
+	document.body.appendChild (backdrop);
+	_endCreditsBackdrop = backdrop;
+}
+
 export function showEndCredits (ending, playerName) {
+	const backdrop = _endCreditsBackdrop;
 	ending = ending || {};
 	const stats = ending.stats || {};
 	const finalAffinity = ending.final_affinity ?? '?';
@@ -271,20 +283,43 @@ export function showEndCredits (ending, playerName) {
 			overlay.classList.add ('end-credits--leaving');
 			setTimeout (() => {
 				if (overlay.parentNode) overlay.parentNode.removeChild (overlay);
+				if (backdrop && backdrop.parentNode) backdrop.parentNode.removeChild (backdrop);
+				_endCreditsBackdrop = null;
 				resolve ();
 			}, 500);
 		});
 	});
 }
 
-// ─── 클릭 한번 대기 (엔딩 이미지 홀드용) ─────────────────────────────────────
-// 풀스크린 투명 오버레이를 띄워 클릭 한 번을 잡고 promise를 resolve.
-// `body.ending-image-hold` 클래스도 함께 부착해 텍스트박스를 숨긴다.
-export function waitForClickHold (fadeInMs, fadeOutMs) {
+// ─── 엔딩 이미지 표시 + 클릭 대기 + 페이드아웃 ─────────────────────────────
+// bgKey 에 해당하는 이미지를 풀스크린 오버레이로 페이드인 → 클릭 대기 →
+// 검은 베일 페이드인 → 오버레이 제거까지 전부 책임진다.
+// 호출 전 Monogatari 씬을 fade_black 으로 고정해 두어야 페이드아웃이 자연스럽다.
+export function showEndingImage (bgKey, fadeInMs, fadeOutMs) {
+	const url = sceneUrl (bgKey);
 	return new Promise ((resolve) => {
 		document.body.classList.add ('ending-image-hold');
+
 		const overlay = document.createElement ('div');
-		overlay.className = 'click-catcher';
+		Object.assign (overlay.style, {
+			position:           'fixed',
+			inset:              '0',
+			zIndex:             '9300',
+			backgroundImage:    url ? `url('${url}')` : 'none',
+			backgroundSize:     'contain',
+			backgroundColor:    '#000',
+			backgroundRepeat:   'no-repeat',
+			backgroundPosition: 'center',
+			opacity:            '0',
+			cursor:             'pointer'
+		});
+		document.body.appendChild (overlay);
+
+		requestAnimationFrame (() => requestAnimationFrame (() => {
+			overlay.style.transition = `opacity ${fadeInMs}ms ease`;
+			overlay.style.opacity = '1';
+		}));
+
 		let ready = false;
 		let finishing = false;
 		setTimeout (() => { ready = true; }, fadeInMs);
@@ -293,21 +328,29 @@ export function waitForClickHold (fadeInMs, fadeOutMs) {
 			if (!ready || finishing) return;
 			finishing = true;
 			overlay.removeEventListener ('click', finish);
-			if (fadeOutMs > 0) {
-				overlay.style.transition = `background ${fadeOutMs}ms ease`;
-				overlay.classList.add ('fading-out');
-				// overlay와 ending-image-hold는 EndCredits 진입 시 정리
-				setTimeout (() => {
-					document.removeEventListener ('keydown', onKey, true);
-					resolve (true);
-				}, fadeOutMs);
-			} else {
+			overlay.style.cursor = 'default';
+
+			const veil = document.createElement ('div');
+			Object.assign (veil.style, {
+				position:   'absolute',
+				inset:      '0',
+				background: '#000',
+				opacity:    '0'
+			});
+			overlay.appendChild (veil);
+			requestAnimationFrame (() => requestAnimationFrame (() => {
+				veil.style.transition = `opacity ${fadeOutMs}ms ease`;
+				veil.style.opacity = '1';
+			}));
+
+			setTimeout (() => {
 				document.removeEventListener ('keydown', onKey, true);
 				document.body.classList.remove ('ending-image-hold');
 				if (overlay.parentNode) overlay.parentNode.removeChild (overlay);
 				resolve (true);
-			}
+			}, fadeOutMs);
 		};
+
 		const onKey = (e) => {
 			if (e.isComposing || e.keyCode === 229) return;
 			if (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowRight') {
@@ -320,7 +363,6 @@ export function waitForClickHold (fadeInMs, fadeOutMs) {
 		};
 		overlay.addEventListener ('click', finish);
 		document.addEventListener ('keydown', onKey, true);
-		document.body.appendChild (overlay);
 	});
 }
 
@@ -368,6 +410,66 @@ export function confirmQuit () {
 		body:   '현재 진행 상황은 자동으로 저장돼요. 메인 메뉴에서 다시 이어 할 수 있어요.',
 		ok:     '나가기',
 		cancel: '취소'
+	});
+}
+
+function _inputModal ({ title, body, placeholder = '0', ok = 'OK', cancel = 'Cancel' }) {
+	return new Promise ((resolve) => {
+		const overlay = document.createElement ('div');
+		overlay.className = 'confirm-modal';
+		overlay.innerHTML = `
+			<div class="confirm-modal__panel" role="alertdialog">
+				<div class="confirm-modal__title">${escapeDialogText (title || '')}</div>
+				<div class="confirm-modal__body">${escapeDialogText (body || '')}</div>
+				<input type="text" inputmode="numeric" class="confirm-modal__input"
+				       placeholder="${escapeDialogText (String (placeholder))}" />
+				<div class="confirm-modal__buttons">
+					<button type="button" class="confirm-modal__btn confirm-modal__btn--cancel">${escapeDialogText (cancel)}</button>
+					<button type="button" class="confirm-modal__btn confirm-modal__btn--ok">${escapeDialogText (ok)}</button>
+				</div>
+			</div>
+		`;
+		document.body.appendChild (overlay);
+		void overlay.offsetWidth;
+		overlay.classList.add ('confirm-modal--visible');
+		const input = overlay.querySelector ('.confirm-modal__input');
+		input.focus ();
+		const close = (value) => {
+			overlay.classList.remove ('confirm-modal--visible');
+			setTimeout (() => { if (overlay.parentNode) overlay.parentNode.removeChild (overlay); }, 250);
+			resolve (value);
+		};
+		overlay.querySelector ('.confirm-modal__btn--cancel').addEventListener ('click', () => close (null));
+		const parseAndClose = () => {
+			const v = input.value.trim ();
+			if (v === '') { close (null); return; }
+			const n = Number (v);
+			if (isNaN (n) || n < -100 || n > 100) {
+				input.classList.add ('confirm-modal__input--error');
+				input.select ();
+				return;
+			}
+			close (n);
+		};
+		overlay.querySelector ('.confirm-modal__btn--ok').addEventListener ('click', parseAndClose);
+		input.addEventListener ('input', () => input.classList.remove ('confirm-modal__input--error'));
+		input.addEventListener ('keydown', (e) => {
+			if (e.key === 'Enter') {
+				parseAndClose ();
+			} else if (e.key === 'Escape') {
+				close (null);
+			}
+		});
+	});
+}
+
+export function promptAffinityInput () {
+	return _inputModal ({
+		title:       '엔딩 점프 (개발용)',
+		body:        '진입할 호감도 수치를 입력하세요.',
+		placeholder: '0',
+		ok:          '점프',
+		cancel:      '취소',
 	});
 }
 

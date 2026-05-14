@@ -66,6 +66,56 @@ export const EVENT_LABELS = {
 	EVENT_DISLIKE_M70: { sign: '−', text: '호감도 -70 도달' }
 };
 
+export const SCENE_FILE = {
+	'blank_white':     'blank_white.svg',
+	'fade_black':      'fade_black.svg',
+	'bedroom_dawn':    'bedroom_dawn.svg',
+	'train_interior':  'metro.png',
+	'posttower_lobby': 'center_1floor.png',
+	'center_hall':     'entrance.png',
+	's1_room':         's1_room.png',
+	'scene_project_plan_evaluation':    'scene_project_plan_evaluation.svg',
+	'scene_launch_ceremony':            'scene_launch_ceremony.svg',
+	'scene_mid_evaluation':             'scene_mid_evaluation.svg',
+	'scene_deep_dev':                   'scene_deep_dev.svg',
+	'scene_final_evaluation':           'scene_final_evaluation.svg',
+	'scene_graduation_busan':           'scene_graduation_busan.svg',
+	'scene_beach_gwangalli':            'gwangalli.png',
+	'scene_ending_instant_bad':         'worst_bad_ending.png',
+	'scene_ending_bad':                 'bad_ending.png',
+	'scene_ending_normal_no_contact':   'normal1.png',
+	'scene_ending_normal_contact':      'normal2.png',
+	'scene_ending_happy':               'happy.png',
+	'scene_ending_marriage_confession': 'confession.png',
+	'scene_ending_marriage_wedding':    'marry.png'
+};
+
+export function sceneUrl (bgKey) {
+	const file = SCENE_FILE[bgKey];
+	return file ? `assets/scenes/${file}` : null;
+}
+
+export const ENDING_DEX_KEY = 'SomaEndingDex.v1';
+
+export const ENDING_META = {
+	ENDING_MARRIAGE:          { order: 1, scenes: ['scene_ending_marriage_confession', 'scene_ending_marriage_wedding'] },
+	ENDING_HAPPY:             { order: 2, scenes: ['scene_ending_happy'] },
+	ENDING_NORMAL_CONTACT:    { order: 3, scenes: ['scene_ending_normal_contact'] },
+	ENDING_NORMAL_NO_CONTACT: { order: 4, scenes: ['scene_ending_normal_no_contact'] },
+	ENDING_BAD:               { order: 5, scenes: ['scene_ending_bad'] },
+	ENDING_INSTANT_BAD:       { order: 6, scenes: ['scene_ending_instant_bad'] }
+};
+
+export const SCENE_LABEL = {
+	scene_ending_marriage_confession: '결혼 — 고백',
+	scene_ending_marriage_wedding:    '결혼 — 식장',
+	scene_ending_happy:               '해피',
+	scene_ending_normal_contact:      '노멀 (연락)',
+	scene_ending_normal_no_contact:   '노멀 (단절)',
+	scene_ending_bad:                 '배드',
+	scene_ending_instant_bad:         '즉시 배드'
+};
+
 export const SCENE_BG_KEY = {
 	SCENE_INTRO:                     'fade_black',
 	SCENE_FIRST_MEET:                's1_room',
