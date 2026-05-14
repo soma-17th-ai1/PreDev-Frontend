@@ -97,7 +97,7 @@ export function ensureMainBtn () {
 	btn.id = 'soma-main-btn';
 	btn.type = 'button';
 	btn.setAttribute ('aria-label', '메인 메뉴로');
-	btn.innerHTML = '<span class="fas fa-home"></span><span data-string>Main</span>';
+	btn.innerHTML = '<span class="fas fa-home"></span><span data-string>메인</span>';
 	btn.addEventListener ('click', (e) => {
 		e.preventDefault ();
 		e.stopPropagation ();
