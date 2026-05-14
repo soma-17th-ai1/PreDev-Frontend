@@ -1,8 +1,6 @@
-// 다중 트랙 BGM 컨트롤러.
-// 트랙별로 별도 HTMLAudioElement 를 유지하므로 동시 재생/독립 정지 가능.
-// 브라우저 autoplay 정책으로 play() 가 거절되면 첫 user gesture 까지 대기 후 재시도.
-
-import { isEndingUnlocked } from './ending-dex.js';
+// 단일 트랙 BGM 매니저.
+// bgm(key) 로 트랙 전환, bgm(null) 로 정지.
+// 전환·정지 시 이전 트랙은 rAF 타임스탬프 기반 페이드 아웃 (FADE_MS).
 
 const SRC = {
 	menu:      'assets/sounds/default.mp3',
@@ -10,62 +8,73 @@ const SRC = {
 	marr:      'assets/sounds/marr.mp3',
 };
 
-const _els     = {};
-const _desired = {};
-const _pending = {};
+const FADE_MS = 800;
+const VOLUME  = 0.7;
 
-function ensure (key) {
-	if (_els[key]) return _els[key];
-	const a = new Audio (SRC[key]);
-	a.loop   = true;
-	a.volume = 0.5;
-	_els[key] = a;
-	return a;
+let _player     = null;  // 현재 재생 중인 Audio
+let _fadingOut  = null;  // 페이드 중인 Audio — 동시 재생 방지용
+let _currentKey = null;
+let _rafId      = null;
+
+function _cancelFade () {
+	if (_rafId !== null) { cancelAnimationFrame (_rafId); _rafId = null; }
+	if (_fadingOut) { _fadingOut.pause (); _fadingOut.currentTime = 0; _fadingOut = null; }
 }
 
-function attempt (key) {
-	if (!_desired[key]) return;
-	const a = ensure (key);
+function _fadeOut (audio, onDone) {
+	_fadingOut     = audio;
+	const startVol = audio.volume;
+	const start    = performance.now ();
+
+	function tick (now) {
+		const t = Math.min ((now - start) / FADE_MS, 1);
+		audio.volume = startVol * (1 - t);
+		if (t < 1) {
+			_rafId = requestAnimationFrame (tick);
+		} else {
+			_rafId     = null;
+			_fadingOut = null;
+			audio.pause ();
+			audio.currentTime = 0;
+			onDone?.();
+		}
+	}
+	_rafId = requestAnimationFrame (tick);
+}
+
+function _play (key) {
+	const a = new Audio (SRC[key]);
+	a.loop   = true;
+	a.volume = VOLUME;
+	_player  = a;
+
 	const p = a.play ();
-	if (p && typeof p.catch === 'function') {
+	if (p?.catch) {
 		p.catch (() => {
-			if (_pending[key]) return;
-			_pending[key] = true;
-			const onGesture = () => {
-				document.removeEventListener ('pointerdown', onGesture, true);
-				document.removeEventListener ('keydown',     onGesture, true);
-				_pending[key] = false;
-				if (_desired[key]) attempt (key);
+			// 브라우저 autoplay 정책 거절 → 첫 user gesture 대기 후 재시도.
+			const retry = () => {
+				document.removeEventListener ('pointerdown', retry, true);
+				document.removeEventListener ('keydown',     retry, true);
+				if (_currentKey === key) a.play ().catch (() => {});
 			};
-			document.addEventListener ('pointerdown', onGesture, true);
-			document.addEventListener ('keydown',     onGesture, true);
+			document.addEventListener ('pointerdown', retry, true);
+			document.addEventListener ('keydown',     retry, true);
 		});
 	}
 }
 
-export function playBgm (key = 'menu') {
-	if (!SRC[key]) { console.warn ('[audio] unknown bgm key:', key); return; }
-	_desired[key] = true;
-	attempt (key);
-}
+export function bgm (key = null) {
+	if (key === _currentKey) return;
 
-// 메인 메뉴용 — 결혼 엔딩 해금 상태면 marr.mp3, 아니면 default.mp3.
-// 다른 트랙(gwanganli 등)이 잔여 재생 중일 수 있으니 모두 정지 후 선택 트랙만 재생.
-export function playMenuBgm () {
-	const key = isEndingUnlocked ('ENDING_MARRIAGE') ? 'marr' : 'menu';
-	Object.keys (SRC).forEach (k => { if (k !== key) stopBgm (k); });
-	playBgm (key);
-}
+	const old   = _player;
+	_currentKey = key;
+	_player     = null;
 
-// 키 생략 시 모든 트랙 정지.
-export function stopBgm (key) {
-	if (key) {
-		_desired[key] = false;
-		const a = _els[key];
-		if (!a) return;
-		try { a.pause (); } catch (e) {}
-		try { a.currentTime = 0; } catch (e) {}
-		return;
+	_cancelFade ();
+
+	if (old) {
+		_fadeOut (old, key ? () => { if (_currentKey === key) _play (key); } : null);
+	} else if (key) {
+		_play (key);
 	}
-	Object.keys (SRC).forEach (k => stopBgm (k));
 }

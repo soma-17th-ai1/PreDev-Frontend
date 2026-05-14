@@ -22,8 +22,8 @@ import { startSseStream, playChatTypewriter } from './chat-stream.js';
 import { bootstrapSessionOnce, fetchEndingContent } from './api.js';
 import { saveEndingClear } from './ending-dex.js';
 import { setGameActive, chatStreamState, finalizeEndingCleanup } from './game-flow.js';
-import { API_BASE, escapeDialogText, ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS, SCENE_BG_KEY } from './constants.js';
-import { playBgm, stopBgm } from './audio.js';
+import { API_BASE, escapeDialogText, ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS, SCENE_BG_KEY, SCENE_FILE } from './constants.js';
+import { bgm } from './audio.js';
 
 // ─── Monogatari 등록 ───────────────────────────────────────────────────────────
 
@@ -50,29 +50,7 @@ monogatari.assets ('images', {
 	'sera_first': 'sera_first.png'
 });
 
-monogatari.assets ('scenes', {
-	'blank_white':     'blank_white.svg',
-	'fade_black':      'fade_black.svg',
-	'bedroom_dawn':    'bedroom_dawn.svg',
-	'train_interior':  'metro.png',
-	'posttower_lobby': 'center_1floor.png',
-	'center_hall':     'entrance.png',
-	's1_room':         's1_room.png',
-	'scene_project_plan_evaluation': 'scene_project_plan_evaluation.png',
-	'scene_launch_ceremony':         'scene_launch_ceremony.png',
-	'scene_mid_evaluation':          'scene_project_plan_evaluation.png',
-	'scene_deep_dev':                'scene_deep_dev.png',
-	'scene_final_evaluation':        'scene_project_plan_evaluation.png',
-	'scene_graduation_busan':        'scene_graduation_busan.png',
-	'scene_beach_gwangalli':         'gwangalli.png',
-	'scene_ending_instant_bad':       'worst_bad_ending.png',
-	'scene_ending_bad':               'bad_ending.png',
-	'scene_ending_normal_no_contact': 'normal1.png',
-	'scene_ending_normal_contact':    'normal2.png',
-	'scene_ending_happy':             'happy.png',
-	'scene_ending_marriage_confession': 'confession.png',
-	'scene_ending_marriage_wedding':    'marry.png'
-});
+monogatari.assets ('scenes', SCENE_FILE);
 
 monogatari.characters ({
 	'p': {
@@ -95,8 +73,7 @@ monogatari.characters ({
 	}
 });
 
-monogatari.translation ('English', {
-	'보내기': '보내기',
+monogatari.translation ('한국어', {
 	'↑': '↑'
 });
 
@@ -109,8 +86,6 @@ monogatari.script ({
 		'show scene blank_white',
 		// 인트로 로고 오버레이.
 		showIntroLogo,
-		// 로고 페이드 종료 — BGM 정지.
-		function () { stopBgm (); return true; },
 		// 인트로 끝나면 검은 배경으로 페이드.
 		'show scene fade_black with fadeIn',
 		'jump NewGame'
@@ -284,7 +259,7 @@ monogatari.script ({
 		'show character y happy',
 		'동이 트는 창밖을 바라보며, 우리는 마지막 커밋을 푸시했다.',
 		'y 우리… 진짜 해냈네요…',
-		'p 응. 같이라서 가능했어.',
+		'p 응. 함께라서 가능했어.',
 		gotoNextScene
 	],
 
@@ -309,9 +284,9 @@ monogatari.script ({
 		'y 부산이라니… 진짜 마지막 같아요.',
 		'p 그러게… 1년이 진짜 빨리 갔다.',
 		'jump LLMChatInit',
-		'show character y shy',
-		'수료식이 끝나고, 우리는 광안리 바닷가에 섰다.',
-		'y {{player.name}}씨… 그동안 정말 즐거웠어요.',
+		'show character y calm',
+		'행사가 끝났다. 1년이 지나간 것이, 실감이 나지 않았다.',
+		'y 이제 진짜 끝이네요…',
 		gotoNextScene
 	],
 
@@ -527,7 +502,7 @@ monogatari.script ({
 			const sceneId = game.current_scene_id || '';
 			const isHappy = (sceneId === 'SCENE_ENDING_HAPPY' || sceneId === 'SCENE_ENDING_MARRIAGE');
 			const isInstantBad = (sceneId === 'SCENE_ENDING_INSTANT_BAD');
-			if (isHappy) playBgm ('gwanganli');
+			if (isHappy) bgm ('gwanganli');
 			if (!isInstantBad) {
 				const introBg = isHappy ? 'scene_beach_gwangalli' : 'scene_graduation_busan';
 				try { await monogatari.run ('show scene ' + introBg + ' with fadeIn', false); } catch (e) {}
@@ -635,12 +610,12 @@ monogatari.script ({
 		'show scene fade_black with fadeIn',
 		// 1번째 일러 — 고백 장면
 		() => showEndingImage ('scene_ending_marriage_confession', ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS),
-		function () { stopBgm ('gwanganli'); return true; },
+		function () { bgm (null); return true; },
 		// 시간 경과 narration
 		'그로부터 2년 뒤, 가을.',
 		'그녀는 드레스를 입고 복도 끝에 서 있었다.',
 		'웨딩마치가 울렸다.',
-		function () { playBgm ('marr'); return true; },
+		function () { bgm ('marr'); return true; },
 		// 2번째 일러 — 결혼식 장면
 		() => showEndingImage ('scene_ending_marriage_wedding', ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS),
 		'jump EndCredits'

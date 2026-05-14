@@ -1,12 +1,11 @@
 import { monogatari } from './engine.js';
 import { fetchSessionMe } from './api.js';
 import { hasLocalAutoSave } from './save.js';
-import { handleNewGame, handleResume, handleSomaQuit, handleDevStart } from './game-flow.js';
+import { handleNewGame, handleResume, handleDevStart } from './game-flow.js';
 import { promptAffinityInput } from './ui.js';
 import { API_BASE, ENDING_META, SCENE_LABEL, EVENT_LABELS, escapeDialogText, sceneUrl } from './constants.js';
 import { getEndingDex } from './ending-dex.js';
 import { BADGE_MAP } from './ui.js';
-import { playMenuBgm } from './audio.js';
 
 monogatari.registerListener ('soma-new', {
 	callback: function () {
@@ -19,13 +18,6 @@ monogatari.registerListener ('soma-resume', {
 	callback: function () {
 		console.debug ('[soma-resume] click → handleResume()');
 		handleResume ();
-		return true;
-	}
-});
-monogatari.registerListener ('soma-quit', {
-	callback: function () {
-		console.debug ('[soma-quit] click → handleSomaQuit()');
-		handleSomaQuit ();
 		return true;
 	}
 });
@@ -43,7 +35,6 @@ class SomaMainMenu extends MainMenu {
                 <button type="button" data-action="soma-resume" data-soma-button="resume" hidden>이어 하기</button>
                 <button type="button" data-action="soma-new"    data-soma-button="new">새 게임</button>
                 <button type="button" data-action="open-screen" data-open="ending-list">엔딩 리스트</button>
-                <button type="button" data-action="open-screen" data-open="settings">설정</button>
                 <button type="button" data-action="open-screen" data-open="help">도움말</button>
 			</div>
 		`;
@@ -51,7 +42,6 @@ class SomaMainMenu extends MainMenu {
 
 	async didMount () {
 		console.debug ('[soma-menu] didMount — registering refresh');
-		playMenuBgm ();
 		await this._refreshSomaMenu ();
 	}
 
@@ -70,20 +60,6 @@ class SomaMainMenu extends MainMenu {
 SomaMainMenu.tag = 'main-menu';
 monogatari.registerComponent (SomaMainMenu);
 
-const SettingsScreen = monogatari.component ('settings-screen');
-class SomaSettingsScreen extends SettingsScreen {
-	render () {
-		const baseHtml = super.render ();
-		const quitHtml = `
-			<div class="row row--center padded settings-quit-row">
-				<button type="button" data-action="soma-quit" class="settings-quit-btn">메인 메뉴로</button>
-			</div>
-		`;
-		return baseHtml + quitHtml;
-	}
-}
-SomaSettingsScreen.tag = 'settings-screen';
-monogatari.registerComponent (SomaSettingsScreen);
 
 // 개발용 단축키: 메인 화면에서 Ctrl+Shift+D → LLMChatInit 즉시 진입
 document.addEventListener ('keydown', function (e) {
@@ -160,71 +136,6 @@ function openDexLightbox (src, caption) {
 	document.addEventListener ('keydown', onKey);
 }
 
-// ─── 엔딩 상세 오버레이 (카드 클릭 시) ─────────────────────────────────────────
-function openEndingDetail (record) {
-	const meta  = ENDING_META[record.ending_id] || { scenes: [] };
-	const stats = record.stats || {};
-	const badge = BADGE_MAP[record.ending_id] || { cls: 'normal', text: record.badge_text || '' };
-
-	const eventTexts = (stats.events_triggered || [])
-		.map (id => EVENT_LABELS[id]?.text)
-		.filter (Boolean);
-	const eventsHtml = eventTexts.length
-		? `<div class="ending-dex__detail-events">${eventTexts.map (t => `<span class="ending-dex__event-chip">${escapeDialogText (t)}</span>`).join ('')}</div>`
-		: '';
-
-	const imagesHtml = meta.scenes.map (sceneKey => {
-		const url     = sceneUrl (sceneKey);
-		const caption = SCENE_LABEL[sceneKey] || sceneKey;
-		return url
-			? `<img class="ending-dex__detail-thumb" src="${url}" alt="${escapeDialogText (caption)}" data-src="${url}" data-caption="${escapeDialogText (caption)}" tabindex="0">`
-			: '';
-	}).join ('');
-
-	const clearedAt = record.cleared_at
-		? new Date (record.cleared_at).toLocaleString ('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-		: '???';
-
-	const affinityClass = typeof record.final_affinity === 'number'
-		? (record.final_affinity >= 1 ? ' end-credits__stat-value--pos' : record.final_affinity < 0 ? ' end-credits__stat-value--neg' : '')
-		: '';
-
-	const backdrop = document.createElement ('div');
-	backdrop.className = 'ending-dex__detail-backdrop';
-	backdrop.innerHTML = `
-		<div class="ending-dex__detail">
-			<button class="ending-dex__detail-close" aria-label="닫기">✕</button>
-			<div class="ending-dex__detail-badge ending-dex__card-badge--${badge.cls}">${badge.text}</div>
-			<h3 class="ending-dex__detail-title">${escapeDialogText (record.player_name)}의 이야기</h3>
-			<p class="ending-dex__detail-date">${clearedAt} 클리어</p>
-			<div class="ending-dex__detail-stats">
-				<div class="ending-dex__detail-stat"><span class="ending-dex__stat-label">최종 호감도</span><span class="ending-dex__stat-value${affinityClass}">${record.final_affinity ?? '?'}</span></div>
-				<div class="ending-dex__detail-stat"><span class="ending-dex__stat-label">총 대화 횟수</span><span class="ending-dex__stat-value">${stats.total_chats ?? '?'}회</span></div>
-				<div class="ending-dex__detail-stat"><span class="ending-dex__stat-label">최고 호감도</span><span class="ending-dex__stat-value">${stats.max_affinity ?? '?'}</span></div>
-				<div class="ending-dex__detail-stat"><span class="ending-dex__stat-label">최저 호감도</span><span class="ending-dex__stat-value">${stats.min_affinity ?? '?'}</span></div>
-			</div>
-			${eventsHtml}
-			${imagesHtml ? `<div class="ending-dex__detail-images">${imagesHtml}</div>` : ''}
-		</div>
-	`;
-	document.body.appendChild (backdrop);
-	requestAnimationFrame (() => backdrop.classList.add ('ending-dex__detail-backdrop--visible'));
-
-	const close = () => {
-		backdrop.classList.remove ('ending-dex__detail-backdrop--visible');
-		setTimeout (() => { if (backdrop.parentNode) backdrop.parentNode.removeChild (backdrop); }, 300);
-		document.removeEventListener ('keydown', onKey);
-	};
-	const onKey = (e) => { if (e.key === 'Escape') close (); };
-	backdrop.addEventListener ('click', (e) => { if (e.target === backdrop) close (); });
-	backdrop.querySelector ('.ending-dex__detail-close').addEventListener ('click', close);
-	backdrop.querySelectorAll ('.ending-dex__detail-thumb').forEach (img => {
-		img.addEventListener ('click', () => openDexLightbox (img.dataset.src, img.dataset.caption));
-		img.addEventListener ('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') openDexLightbox (img.dataset.src, img.dataset.caption); });
-	});
-	document.addEventListener ('keydown', onKey);
-}
-
 // ─── SomaEndingListScreen ────────────────────────────────────────────────────
 const CreditsScreen = monogatari.component ('credits-screen');
 
@@ -234,28 +145,77 @@ class SomaEndingListScreen extends CreditsScreen {
 		const endingIds = Object.keys (ENDING_META).sort ((a, b) => ENDING_META[a].order - ENDING_META[b].order);
 
 		// (a) 카드 그리드
-		const cardsHtml = endingIds.map (id => {
-			const record  = dex[id];
+		const cardsHtml = endingIds.map ((id, idx) => {
+			const record   = dex[id];
 			const unlocked = !!record;
 			const badge    = BADGE_MAP[id] || { cls: 'normal', text: '???' };
+			const cardNum  = String (idx + 1).padStart (2, '0');
 			if (unlocked) {
 				const clearedAt = new Date (record.cleared_at).toLocaleString ('ko-KR', {
 					year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
 				});
+				const stats = record.stats || {};
 				const affinityClass = typeof record.final_affinity === 'number'
 					? (record.final_affinity >= 1 ? ' ending-dex__card-affinity--pos' : record.final_affinity < 0 ? ' ending-dex__card-affinity--neg' : '')
 					: '';
+				const affValClass = typeof record.final_affinity === 'number'
+					? (record.final_affinity >= 1 ? ' ending-dex__card-back-value--pos' : record.final_affinity < 0 ? ' ending-dex__card-back-value--neg' : '')
+					: '';
+				const eventTexts = (stats.events_triggered || [])
+					.map (eid => EVENT_LABELS[eid]?.text)
+					.filter (Boolean)
+					.slice (0, 4);
+				const tagsHtml = eventTexts.length
+					? `<div class="ending-dex__card-tags">${eventTexts.map (t => `<span class="ending-dex__card-tag">${escapeDialogText (t)}</span>`).join ('')}</div>`
+					: '';
 				return `
-					<button class="ending-dex__card ending-dex__card--${badge.cls}" data-ending-id="${id}" aria-label="${badge.text} 상세 보기">
-						<span class="ending-dex__card-badge ending-dex__card-badge--${badge.cls}">${badge.text}</span>
-						<span class="ending-dex__card-affinity${affinityClass}">호감도 ${record.final_affinity ?? '?'}</span>
-						<span class="ending-dex__card-date">${clearedAt}</span>
-					</button>`;
+					<div class="ending-dex__card-scene">
+						<div class="ending-dex__card ending-dex__card--${badge.cls}" data-ending-id="${id}" role="button" aria-label="${badge.text} 상세 보기" tabindex="0">
+							<div class="ending-dex__card-front">
+								<span class="ending-dex__card-num">${cardNum}</span>
+								<span class="ending-dex__card-badge ending-dex__card-badge--${badge.cls}">${badge.text}</span>
+								<span class="ending-dex__card-affinity${affinityClass}">호감도 ${record.final_affinity ?? '?'}</span>
+								<span class="ending-dex__card-date">${clearedAt}</span>
+								<span class="ending-dex__card-hint">마우스를 올려 자세히 보기</span>
+							</div>
+							<div class="ending-dex__card-back">
+								<div class="ending-dex__card-back-top">
+									<span class="ending-dex__card-badge ending-dex__card-badge--${badge.cls}">${badge.text}</span>
+									<span class="ending-dex__card-back-name">${escapeDialogText (record.player_name)}의 이야기</span>
+								</div>
+								<div class="ending-dex__card-back-stats">
+									<div class="ending-dex__card-back-stat">
+										<span class="ending-dex__card-back-label">최종 호감도</span>
+										<span class="ending-dex__card-back-value${affValClass}">${record.final_affinity ?? '?'}</span>
+									</div>
+									<div class="ending-dex__card-back-stat">
+										<span class="ending-dex__card-back-label">총 대화</span>
+										<span class="ending-dex__card-back-value">${stats.total_chats ?? '?'}회</span>
+									</div>
+									<div class="ending-dex__card-back-stat">
+										<span class="ending-dex__card-back-label">최고 호감도</span>
+										<span class="ending-dex__card-back-value">${stats.max_affinity ?? '?'}</span>
+									</div>
+									<div class="ending-dex__card-back-stat">
+										<span class="ending-dex__card-back-label">최저 호감도</span>
+										<span class="ending-dex__card-back-value">${stats.min_affinity ?? '?'}</span>
+									</div>
+								</div>
+								${tagsHtml}
+								<span class="ending-dex__card-date ending-dex__card-back-date">${clearedAt} 클리어</span>
+							</div>
+						</div>
+					</div>`;
 			} else {
 				return `
-					<div class="ending-dex__card ending-dex__card--locked" aria-label="미해금 엔딩">
-						${LOCK_SVG}
-						<span class="ending-dex__card-badge ending-dex__card-badge--locked">???</span>
+					<div class="ending-dex__card-scene">
+						<div class="ending-dex__card ending-dex__card--locked" aria-label="미해금 엔딩">
+							<div class="ending-dex__card-front">
+								<span class="ending-dex__card-num">${cardNum}</span>
+								${LOCK_SVG}
+								<span class="ending-dex__card-badge ending-dex__card-badge--locked">???</span>
+							</div>
+						</div>
 					</div>`;
 			}
 		}).join ('');
@@ -270,10 +230,10 @@ class SomaEndingListScreen extends CreditsScreen {
 			if (unlocked) {
 				const url = sceneUrl (sceneKey);
 				return url
-					? `<button class="ending-dex__image" data-src="${url}" data-caption="${escapeDialogText (caption)}" aria-label="${escapeDialogText (caption)} 원본 보기">
+					? `<div class="ending-dex__image" role="button" tabindex="0" data-src="${url}" data-caption="${escapeDialogText (caption)}" aria-label="${escapeDialogText (caption)} 원본 보기">
 							<img src="${url}" alt="${escapeDialogText (caption)}" loading="lazy">
 							<span class="ending-dex__image-caption">${escapeDialogText (caption)}</span>
-						</button>`
+						</div>`
 					: '';
 			} else {
 				return `<div class="ending-dex__image ending-dex__image--locked" aria-label="미해금 이미지">
@@ -297,7 +257,10 @@ class SomaEndingListScreen extends CreditsScreen {
 				<div class="ending-dex__images">${imagesHtml}</div>
 			</div>
 			<div class="ending-dex__footer">
-				<button type="button" data-action="open-screen" data-open="main" class="ending-dex__back-btn">메인 메뉴로</button>
+				<button type="button" data-action="open-screen" data-open="main" class="ending-dex__back-btn" aria-label="뒤로가기">
+					<span class="ending-dex__back-btn-arrow" aria-hidden="true">←</span>
+					<span class="ending-dex__back-btn-label">뒤로가기</span>
+				</button>
 			</div>
 		`;
 	}
@@ -311,17 +274,24 @@ class SomaEndingListScreen extends CreditsScreen {
 		if (!scroll) return;
 		scroll.innerHTML = this._buildContent ();
 
-		this.querySelectorAll ('.ending-dex__card[data-ending-id]').forEach (btn => {
-			btn.addEventListener ('click', () => {
-				const dex = getEndingDex ();
-				const record = dex[btn.dataset.endingId];
-				if (record) openEndingDetail (record);
+		this.querySelectorAll ('.ending-dex__card[data-ending-id]').forEach (card => {
+			card.addEventListener ('keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault ();
+					card.classList.toggle ('ending-dex__card--flipped');
+				}
 			});
 		});
 
 		this.querySelectorAll ('.ending-dex__image[data-src]').forEach (btn => {
 			btn.addEventListener ('click', () => {
 				openDexLightbox (btn.dataset.src, btn.dataset.caption);
+			});
+			btn.addEventListener ('keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault ();
+					openDexLightbox (btn.dataset.src, btn.dataset.caption);
+				}
 			});
 		});
 	}
