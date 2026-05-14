@@ -25,7 +25,6 @@ import {
 	cancelPendingAutoSave,
 	shouldAutoSaveScriptState
 } from './save.js';
-import { playMenuBgm, stopBgm } from './audio.js';
 
 // LLMChat 의 Input.Save 콜백에서 fetch 를 시작하고, 다음 step 의 async fn 이 await 함.
 // game-flow 의 handleResume 도 null 로 리셋. mutable holder 로 모듈 간 공유.
@@ -94,7 +93,6 @@ export async function finalizeEndingCleanup () {
 	resetSessionBootstrapFlag ();
 	document.dispatchEvent (new CustomEvent ('soma:refresh-menu'));
 	document.dispatchEvent (new CustomEvent ('soma:refresh-ending-list'));
-	playMenuBgm ();
 }
 
 export async function engineStart () {
@@ -208,7 +206,6 @@ export async function handleResume () {
 			}
 		}
 		setSessionBootstrapped ();
-		stopBgm ();
 
 		console.debug ('[resume] loadFromSlot start | key=', SAVE_SLOT_KEY);
 		try {
@@ -288,7 +285,6 @@ export async function handleDevStart () {
 		});
 		monogatari.state ({ step: 0, label: 'DevStart' });
 		resetSessionBootstrapFlag ();
-		stopBgm ();
 		console.debug ('[dev-start] jumping to DevStart');
 		await engineStart ();
 	} catch (err) {
@@ -306,7 +302,6 @@ export async function handleSomaQuit () {
 		await flushResumeSlotSave ('soma-quit');
 		try { await monogatari.run ('end'); }
 		catch (e) { console.warn ('[soma-quit] engine.run("end") 실패:', e); }
-		playMenuBgm ();
 	} catch (err) {
 		console.error ('[soma-quit] unhandled error:', err);
 	}

@@ -23,7 +23,7 @@ import { bootstrapSessionOnce, fetchEndingContent } from './api.js';
 import { saveEndingClear } from './ending-dex.js';
 import { setGameActive, chatStreamState, finalizeEndingCleanup } from './game-flow.js';
 import { API_BASE, escapeDialogText, ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS, SCENE_BG_KEY, SCENE_FILE } from './constants.js';
-import { playBgm, stopBgm } from './audio.js';
+import { bgm } from './audio.js';
 
 // ─── Monogatari 등록 ───────────────────────────────────────────────────────────
 
@@ -87,8 +87,6 @@ monogatari.script ({
 		'show scene blank_white',
 		// 인트로 로고 오버레이.
 		showIntroLogo,
-		// 로고 페이드 종료 — BGM 정지.
-		function () { stopBgm (); return true; },
 		// 인트로 끝나면 검은 배경으로 페이드.
 		'show scene fade_black with fadeIn',
 		'jump NewGame'
@@ -505,7 +503,7 @@ monogatari.script ({
 			const sceneId = game.current_scene_id || '';
 			const isHappy = (sceneId === 'SCENE_ENDING_HAPPY' || sceneId === 'SCENE_ENDING_MARRIAGE');
 			const isInstantBad = (sceneId === 'SCENE_ENDING_INSTANT_BAD');
-			if (isHappy) playBgm ('gwanganli');
+			if (isHappy) bgm ('gwanganli');
 			if (!isInstantBad) {
 				const introBg = isHappy ? 'scene_beach_gwangalli' : 'scene_graduation_busan';
 				try { await monogatari.run ('show scene ' + introBg + ' with fadeIn', false); } catch (e) {}
@@ -613,12 +611,12 @@ monogatari.script ({
 		'show scene fade_black with fadeIn',
 		// 1번째 일러 — 고백 장면
 		() => showEndingImage ('scene_ending_marriage_confession', ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS),
-		function () { stopBgm ('gwanganli'); return true; },
+		function () { bgm (null); return true; },
 		// 시간 경과 narration
 		'그로부터 2년 뒤, 가을.',
 		'그녀는 드레스를 입고 복도 끝에 서 있었다.',
 		'웨딩마치가 울렸다.',
-		function () { playBgm ('marr'); return true; },
+		function () { bgm ('marr'); return true; },
 		// 2번째 일러 — 결혼식 장면
 		() => showEndingImage ('scene_ending_marriage_wedding', ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS),
 		'jump EndCredits'

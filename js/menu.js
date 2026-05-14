@@ -6,7 +6,6 @@ import { promptAffinityInput } from './ui.js';
 import { API_BASE, ENDING_META, SCENE_LABEL, EVENT_LABELS, escapeDialogText, sceneUrl } from './constants.js';
 import { getEndingDex } from './ending-dex.js';
 import { BADGE_MAP } from './ui.js';
-import { playMenuBgm } from './audio.js';
 
 monogatari.registerListener ('soma-new', {
 	callback: function () {
@@ -43,7 +42,6 @@ class SomaMainMenu extends MainMenu {
                 <button type="button" data-action="soma-resume" data-soma-button="resume" hidden>이어 하기</button>
                 <button type="button" data-action="soma-new"    data-soma-button="new">새 게임</button>
                 <button type="button" data-action="open-screen" data-open="ending-list">엔딩 리스트</button>
-                <button type="button" data-action="open-screen" data-open="settings">설정</button>
                 <button type="button" data-action="open-screen" data-open="help">도움말</button>
 			</div>
 		`;
@@ -51,7 +49,6 @@ class SomaMainMenu extends MainMenu {
 
 	async didMount () {
 		console.debug ('[soma-menu] didMount — registering refresh');
-		playMenuBgm ();
 		await this._refreshSomaMenu ();
 	}
 
@@ -73,13 +70,11 @@ monogatari.registerComponent (SomaMainMenu);
 const SettingsScreen = monogatari.component ('settings-screen');
 class SomaSettingsScreen extends SettingsScreen {
 	render () {
-		const baseHtml = super.render ();
-		const quitHtml = `
+		return `
 			<div class="row row--center padded settings-quit-row">
 				<button type="button" data-action="soma-quit" class="settings-quit-btn">메인 메뉴로</button>
 			</div>
 		`;
-		return baseHtml + quitHtml;
 	}
 }
 SomaSettingsScreen.tag = 'settings-screen';

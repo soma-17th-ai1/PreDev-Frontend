@@ -1,6 +1,8 @@
 import { installScriptAutoSaveHook } from './save.js';
 import { cleanupCustomUI } from './game-flow.js';
 import { refreshSomaMainMenu } from './menu.js';
+import { bgm } from './audio.js';
+import { isEndingUnlocked } from './ending-dex.js';
 
 function _syncDistractionFree () {
 	const monogatari = window.Monogatari?.default;
@@ -32,19 +34,27 @@ function _installLifecycleHooks () {
 
 	if (typeof MutationObserver === 'undefined') return;
 	let _mainScreenWasVisible = false;
+	let _gameWasActive        = false;
 	const observer = new MutationObserver (() => {
 		const mainScreen = document.querySelector ('[data-screen="main"]');
 		const gameScreen = document.querySelector ('[data-screen="game"]');
 		if (!mainScreen || !gameScreen) return;
-		const mainVisible = mainScreen.offsetParent !== null;
-		const gameVisible = gameScreen.offsetParent !== null;
-		if (mainVisible && !gameVisible && document.body.classList.contains ('game-active')) {
+		const mainNowVisible = mainScreen.offsetParent !== null;
+		const gameNowVisible = gameScreen.offsetParent !== null;
+		const gameNowActive  = document.body.classList.contains ('game-active');
+		if (mainNowVisible && !gameNowVisible && gameNowActive) {
 			cleanupCustomUI ();
 		}
-		if (mainVisible && !_mainScreenWasVisible) {
+		if (mainNowVisible && !_mainScreenWasVisible) {
+			bgm (isEndingUnlocked ('ENDING_MARRIAGE') ? 'marr' : 'menu');
 			refreshSomaMainMenu ();
 		}
-		_mainScreenWasVisible = mainVisible;
+		// game-active 클래스 추가(상승 엣지)만 감지 — classList.add 멱등성으로 중복 발화 없음.
+		if (gameNowActive && !_gameWasActive) {
+			bgm (null);
+		}
+		_mainScreenWasVisible = mainNowVisible;
+		_gameWasActive        = gameNowActive;
 	});
 	observer.observe (document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'open', 'data-screen'] });
 
