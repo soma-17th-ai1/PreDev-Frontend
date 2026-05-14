@@ -22,7 +22,7 @@ import { startSseStream, playChatTypewriter } from './chat-stream.js';
 import { bootstrapSessionOnce, fetchEndingContent } from './api.js';
 import { saveEndingClear } from './ending-dex.js';
 import { setGameActive, chatStreamState, finalizeEndingCleanup } from './game-flow.js';
-import { API_BASE, escapeDialogText, ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS, SCENE_BG_KEY } from './constants.js';
+import { API_BASE, escapeDialogText, ENDING_BG_FADE_MS, ENDING_BG_FADE_OUT_MS, SCENE_BG_KEY, SCENE_FILE } from './constants.js';
 import { playBgm, stopBgm } from './audio.js';
 
 // ─── Monogatari 등록 ───────────────────────────────────────────────────────────
@@ -50,29 +50,7 @@ monogatari.assets ('images', {
 	'sera_first': 'sera_first.png'
 });
 
-monogatari.assets ('scenes', {
-	'blank_white':     'blank_white.svg',
-	'fade_black':      'fade_black.svg',
-	'bedroom_dawn':    'bedroom_dawn.svg',
-	'train_interior':  'metro.png',
-	'posttower_lobby': 'center_1floor.png',
-	'center_hall':     'entrance.png',
-	's1_room':         's1_room.png',
-	'scene_project_plan_evaluation': 'scene_project_plan_evaluation.png',
-	'scene_launch_ceremony':         'scene_launch_ceremony.png',
-	'scene_mid_evaluation':          'scene_project_plan_evaluation.png',
-	'scene_deep_dev':                'scene_deep_dev.png',
-	'scene_final_evaluation':        'scene_project_plan_evaluation.png',
-	'scene_graduation_busan':        'scene_graduation_busan.png',
-	'scene_beach_gwangalli':         'gwangalli.png',
-	'scene_ending_instant_bad':       'worst_bad_ending.png',
-	'scene_ending_bad':               'bad_ending.png',
-	'scene_ending_normal_no_contact': 'normal1.png',
-	'scene_ending_normal_contact':    'normal2.png',
-	'scene_ending_happy':             'happy.png',
-	'scene_ending_marriage_confession': 'confession.png',
-	'scene_ending_marriage_wedding':    'marry.png'
-});
+monogatari.assets ('scenes', SCENE_FILE);
 
 monogatari.characters ({
 	'p': {
