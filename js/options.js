@@ -121,7 +121,7 @@ monogatari.settings({
 monogatari.preferences ({
 
 	// 다국어 게임 또는 기본 GUI 언어의 초기 언어 설정.
-	'Language': 'English',
+	'Language': '한국어',
 
 	// 초기 볼륨 값(0.0 ~ 1).
 	'Volume': {

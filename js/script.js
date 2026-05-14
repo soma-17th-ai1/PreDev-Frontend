@@ -73,8 +73,7 @@ monogatari.characters ({
 	}
 });
 
-monogatari.translation ('English', {
-	'보내기': '보내기',
+monogatari.translation ('한국어', {
 	'↑': '↑'
 });
 
@@ -285,9 +284,9 @@ monogatari.script ({
 		'y 부산이라니… 진짜 마지막 같아요.',
 		'p 그러게… 1년이 진짜 빨리 갔다.',
 		'jump LLMChatInit',
-		'show character y shy',
-		'수료식이 끝나고, 우리는 광안리 바닷가에 섰다.',
-		'y {{player.name}}씨… 그동안 정말 즐거웠어요.',
+		'show character y calm',
+		'행사가 끝났다. 1년이 지나간 것이, 실감이 나지 않았다.',
+		'y 이제 진짜 끝이네요…',
 		gotoNextScene
 	],
 

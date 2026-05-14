@@ -117,9 +117,7 @@ export async function engineStart () {
 
 export async function handleNewGame () {
 	console.debug ('[new-game] handleNewGame entry');
-	enterFullscreen ();
 	try {
-		cleanupCustomUI ();
 		const me = await fetchSessionMe ();
 		const beHasSession = !!(me?.has_session);
 		const localHasSave = await hasLocalAutoSave ();
@@ -127,6 +125,8 @@ export async function handleNewGame () {
 			const ok = await confirmReset ();
 			if (!ok) return;
 		}
+		enterFullscreen ();
+		cleanupCustomUI ();
 		try {
 			const res = await postSessionsCreate (true);
 			if (!res.ok) console.warn ('[new-game] /sessions 응답 비정상:', res.status);

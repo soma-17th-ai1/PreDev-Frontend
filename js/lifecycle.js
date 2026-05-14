@@ -1,5 +1,6 @@
 import { installScriptAutoSaveHook } from './save.js';
 import { cleanupCustomUI, handleSomaQuit } from './game-flow.js';
+import { isLogViewerOpen, closeLogViewer } from './ui.js';
 import { refreshSomaMainMenu } from './menu.js';
 import { bgm } from './audio.js';
 import { isEndingUnlocked } from './ending-dex.js';
@@ -38,6 +39,10 @@ function _installLifecycleHooks () {
 		if (!document.body.classList.contains ('game-active')) return;
 		e.preventDefault ();
 		e.stopImmediatePropagation ();
+		if (isLogViewerOpen ()) {
+			closeLogViewer ();
+			return;
+		}
 		const modal = document.querySelector ('.confirm-modal--visible');
 		if (modal) {
 			modal.querySelector ('.confirm-modal__btn--cancel')?.click ();
